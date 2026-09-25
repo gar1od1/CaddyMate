@@ -2,13 +2,18 @@
   "lock": false,
   "imports": {
     "@std/assert": "jsr:@std/assert@1",
-    "@caddymate/engine/terrain": "../../packages/engine/src/terrain/index.ts"
+    "@std/path": "jsr:@std/path@1",
+    "@caddymate/engine/terrain": "../../packages/engine/src/terrain/index.ts",
+    "@caddymate/engine": "../../packages/engine/src/index.ts",
+    "@caddymate/db": "../../packages/db/src/index.ts",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2"
   },
   "tasks": {
-    "test": "deno test --allow-env --unstable-sloppy-imports",
-    "check": "deno check weather/index.ts elevation/index.ts"
+    "test": "deno test --allow-env --allow-read --unstable-sloppy-imports",
+    "check": "deno check weather/index.ts elevation/index.ts refit/index.ts finalise-round/index.ts import-sim/index.ts"
   },
   "lint": {
+    "exclude": ["_shared/engine/"],
     "rules": {
       "exclude": ["no-non-null-assertion", "no-import-prefix"]
     }

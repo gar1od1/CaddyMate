@@ -12,7 +12,8 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "vendor:engine": "node supabase/functions/scripts/vendor-engine.mts"
   },
   "devDependencies": {
     "prettier": "^3.6.2",
