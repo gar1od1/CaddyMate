@@ -32,19 +32,28 @@ export default async function Home() {
             : ''}
         </p>
       </section>
-      <section className="card">
-        <h2 className="font-semibold">Coming next</h2>
-        <ul className="text-muted mt-2 list-disc pl-5 text-sm">
-          <li>Simulator import (GSPro / Square) — Phase A</li>
-          <li>
-            <Link href="/courses" className="link">
-              Course editor
-            </Link>{' '}
-            — Phase 1
-          </li>
-          <li>Round review — Phase C</li>
-        </ul>
-      </section>
+      <nav className="grid gap-3 sm:grid-cols-2">
+        {[
+          {
+            href: '/review',
+            title: 'Rounds',
+            text: 'Replay, decisions, strokes gained, scorecard',
+          },
+          { href: '/review/trends', title: 'Trends', text: 'Rolling SG, course view, WHS ledger' },
+          {
+            href: '/clubs',
+            title: 'Club dispersion',
+            text: 'Patterns, ellipses and refits per club',
+          },
+          { href: '/import', title: 'Simulator import', text: 'GSPro and Square Golf sessions' },
+          { href: '/courses', title: 'Courses', text: 'OSM import and course editor' },
+        ].map((l) => (
+          <Link key={l.href} href={l.href} className="card block p-4 hover:border-accent">
+            <span className="font-semibold">{l.title}</span>
+            <span className="text-muted block text-sm">{l.text}</span>
+          </Link>
+        ))}
+      </nav>
     </main>
   );
 }

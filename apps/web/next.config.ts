@@ -2,7 +2,7 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   // Workspace packages ship TypeScript source; compile them with the app.
-  transpilePackages: ['@caddymate/engine', '@caddymate/db', '@caddymate/ui'],
+  transpilePackages: ['@caddymate/engine', '@caddymate/db', '@caddymate/ui', '@caddymate/api'],
   // MapLibre's worker bundle, served by src/app/courses/maplibre/[file]/route.ts.
   outputFileTracingIncludes: {
     '/courses/maplibre/[file]': [
