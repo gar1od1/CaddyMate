@@ -1,0 +1,50 @@
+/**
+ * Expected strokes after a landing (docs/SPEC.md §9.1): the baseline
+ * `E(lie, distance)` for where the ball finished, plus penalty strokes.
+ */
+import {
+  expectedStrokes,
+  lieToSgCategory,
+  type BaselineId,
+  type BaselineTable,
+  type SgLieCategory,
+} from '../scoring/index.js';
+import type { Lie } from '../types/index.js';
+import type { LandingClass } from './geometry.js';
+
+/** Where the shot was played from: needed for stroke and distance (OB). */
+export interface StartContext {
+  lie: Lie;
+  /** Distance from the start to the pin, metres. */
+  distanceM: number;
+}
+
+/** Lie a penalty-area drop is played from (§9.1). */
+export const PENALTY_DROP_LIE: Lie = 'rough';
+
+/** Baseline category of the next shot after a non-penalty landing. */
+export const landingCategory = (landing: LandingClass): SgLieCategory =>
+  landing.recovery ? 'recovery' : lieToSgCategory(landing.lie);
+
+/**
+ * `E` after a landing, penalty strokes included:
+ * - no penalty: `E(landing lie, pinDistM)`;
+ * - lateral / yellow: `E(rough, pinDistM) + 1` (drop at the same distance);
+ * - OB: `E(start lie, start distance) + 1` (stroke and distance).
+ */
+export function expectedAfterLanding(
+  landing: LandingClass,
+  pinDistM: number,
+  baseline: BaselineTable | BaselineId,
+  start: StartContext,
+): number {
+  switch (landing.penalty) {
+    case 'ob':
+      return expectedStrokes(baseline, lieToSgCategory(start.lie), start.distanceM) + 1;
+    case 'lateral':
+    case 'yellow':
+      return expectedStrokes(baseline, lieToSgCategory(PENALTY_DROP_LIE), pinDistM) + 1;
+    case 'none':
+      return expectedStrokes(baseline, landingCategory(landing), pinDistM);
+  }
+}
