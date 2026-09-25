@@ -1,0 +1,5 @@
+# Build: monkeyc -d vivoactive5 -f monkey.jungle -o bin/CaddyMate.prg -y developer_key
+project.manifest = manifest.xml
+
+base.sourcePath = source
+base.resourcePath = resources

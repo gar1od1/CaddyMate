@@ -1,0 +1,4 @@
+bin/
+developer_key
+developer_key.der
+*.pem

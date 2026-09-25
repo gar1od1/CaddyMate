@@ -1,0 +1,10 @@
+<menus>
+    <!-- Action menu opened by the top button / a tap on the play screen.
+         The club picker is built at runtime from the list the phone pushes. -->
+    <menu2 id="ActionMenu" title="@Strings.ActionsTitle">
+        <menu-item id="hit" label="@Strings.Hit" subLabel="@Strings.HitSub"/>
+        <menu-item id="ball" label="@Strings.BallHere" subLabel="@Strings.BallHereSub"/>
+        <menu-item id="holed" label="@Strings.Holed" subLabel="@Strings.HoledSub"/>
+        <menu-item id="club" label="@Strings.Club" subLabel="@Strings.ClubSub"/>
+    </menu2>
+</menus>

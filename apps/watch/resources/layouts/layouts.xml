@@ -1,0 +1,8 @@
+<layouts>
+    <!-- Shown until the phone has pushed a first `state` message. The play screen
+         itself is drawn directly with Dc calls in PlayView.mc. -->
+    <layout id="WaitingLayout">
+        <label x="center" y="38%" text="@Strings.WaitingTitle" font="Graphics.FONT_MEDIUM" justification="Graphics.TEXT_JUSTIFY_CENTER" color="Graphics.COLOR_WHITE"/>
+        <label x="center" y="56%" text="@Strings.WaitingBody" font="Graphics.FONT_XTINY" justification="Graphics.TEXT_JUSTIFY_CENTER" color="Graphics.COLOR_LT_GRAY"/>
+    </layout>
+</layouts>

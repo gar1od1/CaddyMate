@@ -1,0 +1,29 @@
+<strings>
+    <string id="AppName">CaddyMate</string>
+    <string id="WaitingTitle">CaddyMate</string>
+    <string id="WaitingBody">Open a round on the phone</string>
+
+    <string id="ActionsTitle">Shot</string>
+    <string id="Hit">Hit</string>
+    <string id="HitSub">Mark where you hit from</string>
+    <string id="BallHere">Ball here</string>
+    <string id="BallHereSub">Mark where the ball stopped</string>
+    <string id="Holed">Holed</string>
+    <string id="HoledSub">End this hole</string>
+    <string id="Club">Club</string>
+    <string id="ClubSub">Pick from your bag</string>
+
+    <string id="ClubsTitle">Club</string>
+    <string id="NoClubs">No clubs from phone</string>
+
+    <string id="Hole">Hole</string>
+    <string id="Par">Par</string>
+    <string id="Front">F</string>
+    <string id="Centre">C</string>
+    <string id="Back">B</string>
+    <string id="Landing">Land</string>
+    <string id="Sent">sent</string>
+    <string id="Queued">queued</string>
+    <string id="NoGps">no GPS</string>
+    <string id="Stale">last known</string>
+</strings>

@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<!--
+  CaddyMate Connect IQ watch app (SPEC §11, Phase D).
+  The application id below is also hard-coded on the phone side as
+  CONNECT_IQ_APP_ID in apps/mobile/src/lib/garmin/protocol.ts; change both together.
+-->
+<iq:manifest version="3" xmlns:iq="http://www.garmin.com/xml/connectiq">
+    <iq:application id="3c6bad9f67c047e495ca820294050770" type="watch-app" name="@Strings.AppName" entry="CaddyMateApp" launcherIcon="@Drawables.LauncherIcon" minApiLevel="5.0.0">
+        <iq:products>
+            <iq:product id="vivoactive5"/>
+        </iq:products>
+        <iq:permissions>
+            <iq:uses-permission id="Communications"/>
+            <iq:uses-permission id="Positioning"/>
+        </iq:permissions>
+        <iq:languages>
+            <iq:language>eng</iq:language>
+        </iq:languages>
+        <iq:barrels/>
+    </iq:application>
+</iq:manifest>
