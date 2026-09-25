@@ -1,0 +1,278 @@
+/**
+ * Elevation grids and the terrain maths built on them (docs/SPEC.md §6.2, §7.2,
+ * §7.5). A grid is a node-registered raster: node (row 0, col 0) sits exactly on
+ * the bbox's north-west corner and node (height − 1, width − 1) on its
+ * south-east corner, with rows equally spaced in latitude and columns in
+ * longitude. At course scale (≤ a few km) that equirectangular spacing is
+ * effectively uniform in metres.
+ */
+import { EARTH_RADIUS_M, fromLocalXY, toLocalXY, type Bbox, type LatLng } from '../geo/index.js';
+import { degToRad, radToDeg } from '../units/index.js';
+import type { Handedness, SlopeStrength, StanceSlope } from '../types/index.js';
+
+export interface ElevationGrid {
+  bbox: Bbox;
+  /** Nominal node spacing in metres (informational; geometry comes from bbox + size). */
+  resolutionM: number;
+  width: number;
+  height: number;
+  /** Heights in metres, row-major, north-up: index = row * width + col. */
+  data: Float32Array;
+}
+
+/** Throws unless `grid` is well-formed (≥ 2×2 nodes, non-empty bbox, matching data length). */
+export function assertElevationGrid(grid: ElevationGrid): void {
+  const { bbox, width, height, data } = grid;
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 2 || height < 2) {
+    throw new RangeError(
+      `grid must be at least 2×2 nodes (got ${String(width)}×${String(height)})`,
+    );
+  }
+  if (!(bbox.maxLat > bbox.minLat) || !(bbox.maxLng > bbox.minLng)) {
+    throw new RangeError('grid bbox must have positive extent');
+  }
+  if (data.length !== width * height) {
+    throw new RangeError(
+      `grid data has ${String(data.length)} values, expected ${String(width * height)}`,
+    );
+  }
+}
+
+/** Width and height of `bbox` in metres (measured through its centre). */
+export function bboxSizeM(bbox: Bbox): { widthM: number; heightM: number } {
+  const midLat = (bbox.minLat + bbox.maxLat) / 2;
+  return {
+    widthM: degToRad(bbox.maxLng - bbox.minLng) * Math.cos(degToRad(midLat)) * EARTH_RADIUS_M,
+    heightM: degToRad(bbox.maxLat - bbox.minLat) * EARTH_RADIUS_M,
+  };
+}
+
+/** `bbox` grown by at least `metres` on every side (longitude padding sized at its poleward edge). */
+export function expandBbox(bbox: Bbox, metres: number): Bbox {
+  const dLat = radToDeg(metres / EARTH_RADIUS_M);
+  const polewardLat = Math.max(Math.abs(bbox.minLat), Math.abs(bbox.maxLat));
+  const dLng = radToDeg(metres / (EARTH_RADIUS_M * Math.cos(degToRad(polewardLat))));
+  return {
+    minLat: bbox.minLat - dLat,
+    minLng: bbox.minLng - dLng,
+    maxLat: bbox.maxLat + dLat,
+    maxLng: bbox.maxLng + dLng,
+  };
+}
+
+/** Node counts for a grid over `bbox` with roughly `resolutionM` spacing (at least 2×2). */
+export function gridDimensions(bbox: Bbox, resolutionM: number): { width: number; height: number } {
+  if (!(resolutionM > 0)) throw new RangeError('resolutionM must be positive');
+  const { widthM, heightM } = bboxSizeM(bbox);
+  return {
+    width: Math.max(2, Math.round(widthM / resolutionM) + 1),
+    height: Math.max(2, Math.round(heightM / resolutionM) + 1),
+  };
+}
+
+/** Position of node (row, col). */
+export function gridNodeLatLng(grid: ElevationGrid, row: number, col: number): LatLng {
+  const { bbox, width, height } = grid;
+  return {
+    lat: bbox.maxLat - (row / (height - 1)) * (bbox.maxLat - bbox.minLat),
+    lng: bbox.minLng + (col / (width - 1)) * (bbox.maxLng - bbox.minLng),
+  };
+}
+
+/** Build a grid over `bbox` by evaluating `heightAt` at every node. */
+export function createElevationGrid(
+  bbox: Bbox,
+  resolutionM: number,
+  heightAt: (p: LatLng) => number,
+): ElevationGrid {
+  const { width, height } = gridDimensions(bbox, resolutionM);
+  const grid: ElevationGrid = {
+    bbox,
+    resolutionM,
+    width,
+    height,
+    data: new Float32Array(width * height),
+  };
+  assertElevationGrid(grid);
+  for (let r = 0; r < height; r++) {
+    for (let c = 0; c < width; c++) {
+      grid.data[r * width + c] = heightAt(gridNodeLatLng(grid, r, c));
+    }
+  }
+  return grid;
+}
+
+/** Minimum and maximum height in the grid. */
+export function gridMinMax(grid: ElevationGrid): { min: number; max: number } {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const v of grid.data) {
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  return { min, max };
+}
+
+/**
+ * Bilinear height at `p`, metres. Points on the bbox edge are sampled with the
+ * cell indices clamped to the grid; points outside the bbox return `null`.
+ */
+export function sampleElevation(grid: ElevationGrid, p: LatLng): number | null {
+  const { bbox, width, height, data } = grid;
+  if (p.lat < bbox.minLat || p.lat > bbox.maxLat || p.lng < bbox.minLng || p.lng > bbox.maxLng) {
+    return null;
+  }
+  const fx = ((p.lng - bbox.minLng) / (bbox.maxLng - bbox.minLng)) * (width - 1);
+  const fy = ((bbox.maxLat - p.lat) / (bbox.maxLat - bbox.minLat)) * (height - 1);
+  const c0 = Math.min(Math.floor(fx), width - 2);
+  const r0 = Math.min(Math.floor(fy), height - 2);
+  const tx = fx - c0;
+  const ty = fy - r0;
+  const i = r0 * width + c0;
+  const z00 = data[i]!;
+  const z01 = data[i + 1]!;
+  const z10 = data[i + width]!;
+  const z11 = data[i + width + 1]!;
+  return (z00 * (1 - tx) + z01 * tx) * (1 - ty) + (z10 * (1 - tx) + z11 * tx) * ty;
+}
+
+/** Height change from `from` to `to` in metres (+ = `to` is higher); `null` if either is off-grid. */
+export function elevationDeltaM(grid: ElevationGrid, from: LatLng, to: LatLng): number | null {
+  const a = sampleElevation(grid, from);
+  const b = sampleElevation(grid, to);
+  return a === null || b === null ? null : b - a;
+}
+
+/** Terrain gradient (rise over run, dimensionless) in the local east/north plane. */
+export interface Gradient {
+  dzdEast: number;
+  dzdNorth: number;
+}
+
+/** Stencil radii (as fractions of the fit radius) and directions for {@link planeFit}. */
+const STENCIL_RADII = [0.5, 1];
+/** Unit offsets (east, north) for 8 compass directions; cardinals exact so edge points stay on-grid. */
+const H = Math.SQRT1_2;
+const STENCIL_UNITS: readonly (readonly [number, number])[] = [
+  [0, 1],
+  [H, H],
+  [1, 0],
+  [H, -H],
+  [0, -1],
+  [-H, -H],
+  [-1, 0],
+  [-H, H],
+];
+
+/**
+ * Least-squares plane `z = a + gE·x + gN·y` over a stencil of bilinear samples
+ * (centre plus 8 directions at radiusM/2 and radiusM). Stencil points that fall
+ * off the grid are dropped; returns `null` only when `p` itself is off-grid.
+ */
+export function planeFit(grid: ElevationGrid, p: LatLng, radiusM = 3): Gradient | null {
+  if (!(radiusM > 0)) throw new RangeError('radiusM must be positive');
+  const z0 = sampleElevation(grid, p);
+  if (z0 === null) return null;
+  // Accumulate the normal equations with the centre sample at the origin.
+  let n = 1;
+  let sx = 0;
+  let sy = 0;
+  let sxx = 0;
+  let syy = 0;
+  let sxy = 0;
+  let sz = z0;
+  let sxz = 0;
+  let syz = 0;
+  for (const f of STENCIL_RADII) {
+    for (const [ux, uy] of STENCIL_UNITS) {
+      const q = fromLocalXY(p, { x: f * radiusM * ux, y: f * radiusM * uy });
+      const z = sampleElevation(grid, q);
+      if (z === null) continue;
+      // Re-project so x/y are exact metres for the sample we actually took.
+      const { x, y } = toLocalXY(p, q);
+      n++;
+      sx += x;
+      sy += y;
+      sxx += x * x;
+      syy += y * y;
+      sxy += x * y;
+      sz += z;
+      sxz += x * z;
+      syz += y * z;
+    }
+  }
+  // Centre the sums (removes the intercept) and solve the 2×2 system by Cramer's rule.
+  // The centre plus at least one stencil quadrant is always on-grid, so det > 0.
+  const cxx = sxx - (sx * sx) / n;
+  const cyy = syy - (sy * sy) / n;
+  const cxy = sxy - (sx * sy) / n;
+  const cxz = sxz - (sx * sz) / n;
+  const cyz = syz - (sy * sz) / n;
+  const det = cxx * cyy - cxy * cxy;
+  return {
+    dzdEast: (cxz * cyy - cyz * cxy) / det,
+    dzdNorth: (cyz * cxx - cxz * cxy) / det,
+  };
+}
+
+/** §7.5 thresholds on |grade|: < 2 % none, 2–6 % mild, > 6 % severe. */
+export const SLOPE_MILD_GRADE = 0.02;
+export const SLOPE_SEVERE_GRADE = 0.06;
+
+export function slopeStrength(grade: number): SlopeStrength {
+  const g = Math.abs(grade);
+  if (g < SLOPE_MILD_GRADE) return 'none';
+  return g > SLOPE_SEVERE_GRADE ? 'severe' : 'mild';
+}
+
+/** Terrain grades relative to a shot line (dimensionless rise over run). */
+export interface StanceGrades {
+  /** + when the ground rises towards the target (uphill lie). */
+  alongGrade: number;
+  /** + when the ground rises from the player's feet towards the ball (ball above feet). */
+  towardBallGrade: number;
+}
+
+/**
+ * Project the terrain gradient onto the shot line and its normal. A right-hander
+ * addresses the ball standing on the LEFT of the line (looking at the target), so
+ * the ball is above their feet when the ground rises across the line from left to
+ * right; a left-hander stands on the right, so the sign flips.
+ */
+export function stanceGrades(
+  g: Gradient,
+  lineBearingDeg: number,
+  handedness: Handedness,
+): StanceGrades {
+  const θ = degToRad(lineBearingDeg);
+  // Unit vectors (east, north): along = (sinθ, cosθ); right of line = (cosθ, −sinθ).
+  const alongGrade = g.dzdEast * Math.sin(θ) + g.dzdNorth * Math.cos(θ);
+  const rightGrade = g.dzdEast * Math.cos(θ) - g.dzdNorth * Math.sin(θ);
+  return { alongGrade, towardBallGrade: handedness === 'R' ? rightGrade : -rightGrade };
+}
+
+/** Map stance grades to the four §7.5 toggles. */
+export function stanceSlopeFromGrades(grades: StanceGrades): StanceSlope {
+  const { alongGrade: a, towardBallGrade: b } = grades;
+  return {
+    uphill: slopeStrength(Math.max(0, a)),
+    downhill: slopeStrength(Math.max(0, -a)),
+    ballAboveFeet: slopeStrength(Math.max(0, b)),
+    ballBelowFeet: slopeStrength(Math.max(0, -b)),
+  };
+}
+
+/**
+ * Suggested stance-slope toggles at `p` for a shot on `lineBearingDeg`
+ * (docs/SPEC.md §7.5). Returns `null` when `p` is off the grid.
+ */
+export function stanceSlopeSuggestion(
+  grid: ElevationGrid,
+  p: LatLng,
+  lineBearingDeg: number,
+  handedness: Handedness,
+  radiusM = 3,
+): StanceSlope | null {
+  const g = planeFit(grid, p, radiusM);
+  return g === null ? null : stanceSlopeFromGrades(stanceGrades(g, lineBearingDeg, handedness));
+}
