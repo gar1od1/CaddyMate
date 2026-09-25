@@ -1,0 +1,59 @@
+@import 'tailwindcss';
+
+/* Tokens mirror packages/ui/src/index.ts — keep in sync. */
+@theme {
+  --color-bg: #0b1f14;
+  --color-bg-elevated: #12291b;
+  --color-surface: #1a3324;
+  --color-border: #2e5038;
+  --color-text: #f4f7f5;
+  --color-muted: #a8bdb0;
+  --color-faint: #6f8a79;
+  --color-accent: #3ddc84;
+  --color-accent-pressed: #2fbf70;
+  --color-accent-text: #062a16;
+  --color-danger: #f06262;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  padding: 1.5rem;
+}
+.input {
+  width: 100%;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 0.625rem;
+  padding: 0.75rem;
+  font-size: 1.125rem;
+  color: var(--color-text);
+}
+.btn {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  border-radius: 0.625rem;
+  padding: 0.75rem;
+  font-weight: 600;
+}
+.btn:hover {
+  background: var(--color-accent-pressed);
+}
+.btn:disabled {
+  opacity: 0.5;
+}
+.link {
+  color: var(--color-accent);
+}
+.text-muted {
+  color: var(--color-muted);
+}
+.text-danger {
+  color: var(--color-danger);
+}

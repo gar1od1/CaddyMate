@@ -1,0 +1,36 @@
+# Supabase CLI config — local development only. Prod project: caddymate-prod
+# (mceverccxohligbwpdwd, eu-west-1). Migrations live in packages/db/migrations.
+project_id = "caddymate"
+
+[db]
+port = 54322
+major_version = 17
+
+[db.migrations]
+schema_paths = []
+enabled = true
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = ["caddymate://auth/callback", "http://127.0.0.1:3000/auth/callback"]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false
+
+[studio]
+enabled = true
+port = 54323
+
+[edge_runtime]
+enabled = true

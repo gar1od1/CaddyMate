@@ -1,0 +1,20 @@
+{
+  "name": "@caddymate/db",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Supabase migrations, generated types, RLS policies and seeds.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'no lint for sql'",
+    "test": "echo 'db tests run against local supabase (pnpm db:test)'",
+    "db:start": "supabase start --workdir ../../",
+    "db:reset": "supabase db reset --workdir ../../",
+    "db:types": "supabase gen types typescript --local --workdir ../../ > src/database.types.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
