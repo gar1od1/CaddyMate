@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.turbo/
+.next/
+.expo/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+supabase/.temp/
+supabase/.branches/
+coverage/
+*.log
+.DS_Store
+# Expo / EAS
+apps/mobile/android/
+apps/mobile/ios/
+# Garmin
+apps/watch/bin/

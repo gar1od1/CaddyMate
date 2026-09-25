@@ -30,6 +30,7 @@ geometry, strategy recommendations and decision grading.
 ## 1. Goals, non-goals, success criteria
 
 ### 1.1 Goals
+
 1. Know my true dispersion per club, per condition, from real data.
 2. Stop making stupid decisions: get told the right aim + club, then be shown
    afterwards which strokes I lost to strategy vs. execution.
@@ -38,6 +39,7 @@ geometry, strategy recommendations and decision grading.
    multi-user product later.
 
 ### 1.2 Non-goals (v1)
+
 - Carry vs. total split from on-course GPS (total only; sim provides carry).
 - Offline play (a data signal is assumed on the course).
 - Data export, social features, sharing rounds, leaderboards.
@@ -47,6 +49,7 @@ geometry, strategy recommendations and decision grading.
   display; the player's official index can be typed in and overrides).
 
 ### 1.3 Success criteria for "finished v1"
+
 - 20+ rounds logged at Moyvalley without data loss or needing to edit more than
   one shot per round.
 - Every club with ≥ 30 effective shots shows an ellipse that visibly matches
@@ -63,18 +66,18 @@ geometry, strategy recommendations and decision grading.
 
 ## 2. The player (persona and priors)
 
-| Item | Value |
-|---|---|
-| Handicap index | 13 (target: single figures) |
-| Home course | Moyvalley GC, Ireland — white tees, ~6,500 yds |
-| Units | Yards on screen; SI (metres) in storage and engine |
-| Handedness / shape | Right-handed, natural draw |
-| Bag | Driver 9°, 5-wood, 4-hybrid, P790 irons 5–PW, wedges 50/54/60, putter |
-| Stated stock distances | Driver 240, 7i 160, PW 120 (yards) |
-| Launch monitor / sim | Square Golf Home Edition + GSPro |
-| Watch | Garmin Vivoactive 5 |
-| Phone | Android (iOS required too) |
-| Signal on course | Assumed available |
+| Item                   | Value                                                                 |
+| ---------------------- | --------------------------------------------------------------------- |
+| Handicap index         | 13 (target: single figures)                                           |
+| Home course            | Moyvalley GC, Ireland — white tees, ~6,500 yds                        |
+| Units                  | Yards on screen; SI (metres) in storage and engine                    |
+| Handedness / shape     | Right-handed, natural draw                                            |
+| Bag                    | Driver 9°, 5-wood, 4-hybrid, P790 irons 5–PW, wedges 50/54/60, putter |
+| Stated stock distances | Driver 240, 7i 160, PW 120 (yards)                                    |
+| Launch monitor / sim   | Square Golf Home Edition + GSPro                                      |
+| Watch                  | Garmin Vivoactive 5                                                   |
+| Phone                  | Android (iOS required too)                                            |
+| Signal on course       | Assumed available                                                     |
 
 Handedness is stored per user because slope/lateral bias rules flip for
 left-handers.
@@ -85,19 +88,19 @@ left-handers.
 
 ### 3.1 Decision: stack
 
-| Layer | Choice | Why |
-|---|---|---|
-| Monorepo | `pnpm` workspaces + Turborepo | One TypeScript codebase; engine shared by mobile, web and edge functions |
-| Mobile | **Expo (React Native)**, TypeScript, `expo-router`, EAS Build | Android + iOS from one codebase; cloud builds so no Mac is required; OTA updates for fast iteration while playing weekly |
-| Web | **Next.js** (App Router) on Vercel | Sim CSV import, course editor, round review dashboard; reuse of the existing Vercel project |
-| Engine | `packages/engine` — pure TS, zero React/RN deps | Geo maths, condition model, dispersion fitting, strategy, strokes gained, WHS/Stableford. Runs in the app, on the web and in Supabase Edge Functions (Deno) unchanged |
-| Backend | **Supabase** (Postgres 17 + PostGIS, Auth, Storage, Edge Functions) | Already owned; RLS gives multi-tenancy for free |
-| Maps | **MapLibre GL** (`@maplibre/maplibre-react-native`, `maplibre-gl` on web) with satellite raster tiles | Open, no per-SDK lock-in; same style JSON on both surfaces |
-| Satellite imagery | Mapbox Satellite raster tiles (free tier is ample for one user); ESRI World Imagery as fallback | Best imagery of Irish courses in practice |
-| Elevation | Mapbox Terrain-RGB tiles decoded in the engine (cached per course) | 1 tile fetch per course, then everything is local; gives slope grids for stance suggestion |
-| Weather | **Open-Meteo** (free, no key): 10 m wind speed/direction, gusts, temperature, surface pressure | Fetched once per hole (or on demand); stored as a snapshot on every shot |
-| Watch | Garmin **Connect IQ** app in Monkey C, talking to the phone via the Connect IQ Mobile SDK | Only route onto a Garmin; sideload to own watch, store later |
-| CI/CD | GitHub Actions (typecheck, lint, unit tests, engine property tests); Vercel preview per PR; EAS Build on tag | Protects `main`; single dev keeps PR flow light |
+| Layer             | Choice                                                                                                       | Why                                                                                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Monorepo          | `pnpm` workspaces + Turborepo                                                                                | One TypeScript codebase; engine shared by mobile, web and edge functions                                                                                              |
+| Mobile            | **Expo (React Native)**, TypeScript, `expo-router`, EAS Build                                                | Android + iOS from one codebase; cloud builds so no Mac is required; OTA updates for fast iteration while playing weekly                                              |
+| Web               | **Next.js** (App Router) on Vercel                                                                           | Sim CSV import, course editor, round review dashboard; reuse of the existing Vercel project                                                                           |
+| Engine            | `packages/engine` — pure TS, zero React/RN deps                                                              | Geo maths, condition model, dispersion fitting, strategy, strokes gained, WHS/Stableford. Runs in the app, on the web and in Supabase Edge Functions (Deno) unchanged |
+| Backend           | **Supabase** (Postgres 17 + PostGIS, Auth, Storage, Edge Functions)                                          | Already owned; RLS gives multi-tenancy for free                                                                                                                       |
+| Maps              | **MapLibre GL** (`@maplibre/maplibre-react-native`, `maplibre-gl` on web) with satellite raster tiles        | Open, no per-SDK lock-in; same style JSON on both surfaces                                                                                                            |
+| Satellite imagery | Mapbox Satellite raster tiles (free tier is ample for one user); ESRI World Imagery as fallback              | Best imagery of Irish courses in practice                                                                                                                             |
+| Elevation         | Mapbox Terrain-RGB tiles decoded in the engine (cached per course)                                           | 1 tile fetch per course, then everything is local; gives slope grids for stance suggestion                                                                            |
+| Weather           | **Open-Meteo** (free, no key): 10 m wind speed/direction, gusts, temperature, surface pressure               | Fetched once per hole (or on demand); stored as a snapshot on every shot                                                                                              |
+| Watch             | Garmin **Connect IQ** app in Monkey C, talking to the phone via the Connect IQ Mobile SDK                    | Only route onto a Garmin; sideload to own watch, store later                                                                                                          |
+| CI/CD             | GitHub Actions (typecheck, lint, unit tests, engine property tests); Vercel preview per PR; EAS Build on tag | Protects `main`; single dev keeps PR flow light                                                                                                                       |
 
 Rejected alternatives: Flutter (would split the engine from the web app's
 TypeScript), Google Maps SDK (per-platform APIs, poor satellite tile reuse in a
@@ -123,6 +126,7 @@ docs/
 ```
 
 ### 3.3 Environments
+
 - **Local dev:** Supabase CLI (`supabase start`) with migrations from
   `packages/db`; Expo dev client on a physical Android phone.
 - **Prod:** `caddymate-prod` (`mceverccxohligbwpdwd`, eu-west-1). The paused
@@ -132,6 +136,7 @@ docs/
   and applies migrations to prod via CI. Mobile builds are cut from tags.
 
 ### 3.4 Multi-tenancy from day one
+
 - Every user-owned table has `user_id uuid not null references auth.users`.
 - RLS: owner-only read/write on user data; courses are readable by all
   authenticated users and writable by their `created_by_user_id` (admin role
@@ -145,28 +150,29 @@ docs/
 
 ## 4. Core concepts and vocabulary
 
-| Term | Meaning |
-|---|---|
-| **Shot** | One stroke. Has a start position, an end position, a club, conditions and intent. Sim shots have no positions, only measured carry/total/offline. |
-| **Chain** | Within a hole, shot *n*'s end position is shot *n+1*'s start position. Holing out ends the chain. |
-| **Intended line** | The direction the player meant to start the ball on. Defined either by a target point tapped on the map or by a feature-relative offset ("10 yds right of the left fairway bunker"). Stored as a target point plus the resolved bearing. |
-| **Club frame** | 2-D frame with origin at the start position, +y along the intended line, +x to the player's right. Every shot result becomes `(distance_along, lateral_offset)` in this frame. |
-| **Observed result** | The club-frame result as it happened, conditions included. |
-| **Neutral result** | The observed result with the condition model's predicted effects subtracted: what the shot would have done on a flat, windless, sea-level, 20 °C fairway. |
-| **Neutral pattern** | Per club: the distribution of neutral results, estimated from recency-weighted shots with a prior. |
-| **Conditioned pattern** | The neutral pattern with current conditions re-applied — what's drawn on the map. |
-| **Miss pattern** | Per club: the distribution of shots tagged fat/thin/shank/top. Excluded from the neutral pattern; used by strategy as the "disaster" mixture component. |
-| **Cone / arc** | The conditioned pattern drawn from the current position: a skewed sector bounded by lateral quantiles at the distance quantiles. Used for tee shots and layups. |
-| **Ellipse** | The conditioned pattern drawn around the aim point as 1σ / 80 % / 95 % ellipses. Used when the shot is at a green. |
-| **Recommendation** | Strategy engine output for a position: ranked (club, aim point) options with expected strokes and outcome probabilities. Snapshotted onto the shot. |
-| **Strategy loss** | Expected strokes of the player's chosen (club, aim) minus expected strokes of the best option. |
-| **Execution loss** | Actual strokes-gained of the shot minus the expected strokes-gained of the chosen (club, aim). |
+| Term                    | Meaning                                                                                                                                                                                                                                  |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Shot**                | One stroke. Has a start position, an end position, a club, conditions and intent. Sim shots have no positions, only measured carry/total/offline.                                                                                        |
+| **Chain**               | Within a hole, shot _n_'s end position is shot _n+1_'s start position. Holing out ends the chain.                                                                                                                                        |
+| **Intended line**       | The direction the player meant to start the ball on. Defined either by a target point tapped on the map or by a feature-relative offset ("10 yds right of the left fairway bunker"). Stored as a target point plus the resolved bearing. |
+| **Club frame**          | 2-D frame with origin at the start position, +y along the intended line, +x to the player's right. Every shot result becomes `(distance_along, lateral_offset)` in this frame.                                                           |
+| **Observed result**     | The club-frame result as it happened, conditions included.                                                                                                                                                                               |
+| **Neutral result**      | The observed result with the condition model's predicted effects subtracted: what the shot would have done on a flat, windless, sea-level, 20 °C fairway.                                                                                |
+| **Neutral pattern**     | Per club: the distribution of neutral results, estimated from recency-weighted shots with a prior.                                                                                                                                       |
+| **Conditioned pattern** | The neutral pattern with current conditions re-applied — what's drawn on the map.                                                                                                                                                        |
+| **Miss pattern**        | Per club: the distribution of shots tagged fat/thin/shank/top. Excluded from the neutral pattern; used by strategy as the "disaster" mixture component.                                                                                  |
+| **Cone / arc**          | The conditioned pattern drawn from the current position: a skewed sector bounded by lateral quantiles at the distance quantiles. Used for tee shots and layups.                                                                          |
+| **Ellipse**             | The conditioned pattern drawn around the aim point as 1σ / 80 % / 95 % ellipses. Used when the shot is at a green.                                                                                                                       |
+| **Recommendation**      | Strategy engine output for a position: ranked (club, aim point) options with expected strokes and outcome probabilities. Snapshotted onto the shot.                                                                                      |
+| **Strategy loss**       | Expected strokes of the player's chosen (club, aim) minus expected strokes of the best option.                                                                                                                                           |
+| **Execution loss**      | Actual strokes-gained of the shot minus the expected strokes-gained of the chosen (club, aim).                                                                                                                                           |
 
 ---
 
 ## 5. On-course flow (mobile + watch)
 
 ### 5.1 Starting a round
+
 1. Pick course (Moyvalley), tee set (white), date/time defaults to now.
 2. App fetches weather for the course centroid and the elevation grid (cached).
 3. Pin position = green centroid for every hole (v1). Editable per hole by
@@ -174,6 +180,7 @@ docs/
 4. Hole 1 opens in **Play view**.
 
 ### 5.2 Play view (per hole)
+
 - Satellite map, north-up by default, "line-up" mode rotates the map so the
   intended line points up.
 - Distances: to pin (front/centre/back of green), to every hazard edge along
@@ -183,23 +190,25 @@ docs/
 - Bottom sheet (thumb-reachable): the **pre-shot card**.
 
 ### 5.3 Pre-shot card (entered before the shot)
-| Field | Input | Default |
-|---|---|---|
-| Club | Horizontal chip picker, ordered by bag | Strategy recommendation, else last-used for similar distance |
-| Lie | `tee, fairway, first_cut, rough, deep_rough, sand, hardpan, pine_straw` | Inferred from the surface polygon under the GPS position, else fairway; tee on stroke 1 |
-| Stance slope | Four toggles: uphill, downhill, ball above feet, ball below feet; each `mild` or `severe` | Suggested from the elevation grid at the ball position (see §7.5); shown as "suggested", one tap confirms |
-| Intended line | (a) tap a target point on the map, or (b) feature-relative: pick a feature (bunker, tree, green edge, pin) and an offset in yards left/right/short/long of it | Strategy recommendation's aim point |
-| Shape | `straight, draw, fade` (optional) | Player's default shape |
-| Wind | Read-only display (speed, direction, head/tail and cross components along the intended line) with a manual override | API |
+
+| Field         | Input                                                                                                                                                         | Default                                                                                                   |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Club          | Horizontal chip picker, ordered by bag                                                                                                                        | Strategy recommendation, else last-used for similar distance                                              |
+| Lie           | `tee, fairway, first_cut, rough, deep_rough, sand, hardpan, pine_straw`                                                                                       | Inferred from the surface polygon under the GPS position, else fairway; tee on stroke 1                   |
+| Stance slope  | Four toggles: uphill, downhill, ball above feet, ball below feet; each `mild` or `severe`                                                                     | Suggested from the elevation grid at the ball position (see §7.5); shown as "suggested", one tap confirms |
+| Intended line | (a) tap a target point on the map, or (b) feature-relative: pick a feature (bunker, tree, green edge, pin) and an offset in yards left/right/short/long of it | Strategy recommendation's aim point                                                                       |
+| Shape         | `straight, draw, fade` (optional)                                                                                                                             | Player's default shape                                                                                    |
+| Wind          | Read-only display (speed, direction, head/tail and cross components along the intended line) with a manual override                                           | API                                                                                                       |
 
 Tapping **Hit** (phone) or the equivalent watch button records `start_position`
 from GPS, `start_accuracy_m`, timestamp and everything on the card.
 
 ### 5.4 Post-shot
+
 - Walk to the ball. Tapping **Ball here** (phone or watch) records
   `end_position` and opens the next pre-shot card with the chain already advanced.
 - Optional strike quality chips on the previous shot: `good, fat, thin, toe,
-  heel, top, shank`. Anything other than `good` moves the shot to the miss
+heel, top, shank`. Anything other than `good` moves the shot to the miss
   pattern.
 - Result surface, distance from pin and whether it's in a hazard/OB are derived
   from `end_position` against course geometry; no manual entry.
@@ -209,6 +218,7 @@ from GPS, `start_accuracy_m`, timestamp and everything on the card.
 - **Holed:** tapping "Holed" ends the hole; `end_position` = pin.
 
 ### 5.5 Putting
+
 - On the green, distance to the pin is taken from GPS but green-size GPS error
   (±3 m) is too big for putts. The pre-shot card switches to a **putt card**:
   distance is entered/adjusted with a stepper in feet (pre-filled from GPS),
@@ -218,6 +228,7 @@ from GPS, `start_accuracy_m`, timestamp and everything on the card.
   strokes-gained category and putt counts on the scorecard.
 
 ### 5.6 Editing and reconstruction
+
 - Every shot on the hole is listed under the map; tapping opens it for editing
   (drag start/end markers, change club/lie/slope, delete, insert before/after).
 - If the player forgets **Hit** and only taps **Ball here**, the app creates the
@@ -228,6 +239,7 @@ from GPS, `start_accuracy_m`, timestamp and everything on the card.
   neutral result, SG, grades) via a single `recomputeHole()`.
 
 ### 5.7 Scorecard
+
 - Hole strokes = count of shot records on the hole including penalties; can be
   overridden (with a reason) if a shot wasn't logged.
 - Live gross, net, Stableford points, and to-par; front/back/total.
@@ -245,6 +257,7 @@ Timestamps `timestamptz`. Every user table carries `user_id`, `created_at`,
 `updated_at`. Only the essentials are listed; audit columns omitted.
 
 ### 6.1 Identity and equipment
+
 ```
 profiles           user_id PK, display_name, handedness ('R'|'L'), units ('yd'),
                    handicap_index_official numeric null, default_shape,
@@ -256,6 +269,7 @@ clubs              club_id PK, user_id, name ('7i'), kind (driver|wood|hybrid|
 ```
 
 ### 6.2 Course model
+
 ```
 courses            course_id PK, name, slug, country, centroid, boundary_polygon,
                    source (osm|editor|igolf), osm_relation_id, status
@@ -282,6 +296,7 @@ truth for lie inference and penalty logic. Trees are stored as points with a
 `tree_height_m`) for the obstacle model.
 
 ### 6.3 Rounds and shots
+
 ```
 rounds             round_id PK, user_id, course_id, course_version, tee_set_id,
                    started_at, finished_at, status (live|complete|abandoned),
@@ -336,6 +351,7 @@ devices            device_id PK, user_id, kind (garmin_ciq), watch_model,
 ```
 
 ### 6.4 Invariants
+
 - For course shots, `start_position` of `seq n+1` equals `end_position` of
   `seq n` (enforced in `recomputeHole`, not by a DB constraint, so edits can be
   applied atomically).
@@ -361,6 +377,7 @@ defaults; every coefficient is a candidate for later fitting from the player's
 own residuals (§8.6). Units inside the engine: metres, m/s, °C, hPa.
 
 ### 7.1 Wind
+
 Wind vector decomposed along the intended line into head component `W_h` (+ into
 the player) and cross component `W_c` (+ from the player's left, pushing the ball
 right).
@@ -374,48 +391,54 @@ right).
 - Manual override sets `conditions.override = true` and replaces speed/direction.
 
 ### 7.2 Elevation change
+
 `Δh = elevation(end or target) − elevation(start)`.
 `Δd = −k_elev(kind) · Δh`, default `k_elev` 0.9 for irons, 0.7 for woods/driver,
 1.0 for wedges (steeper descent → closer to 1 : 1). Applied to the plays-like
 distance shown to the player and to normalisation.
 
 ### 7.3 Temperature and air density
+
 Relative air density `ρ/ρ₀` from pressure and temperature vs. 1013 hPa / 20 °C.
 `Δd = d · k_density · (1 − ρ/ρ₀)`, default `k_density = 0.55` (a 3 % density
 drop ≈ +1.6 % distance). Temperature's ball-compression effect is folded into
 this coefficient rather than modelled separately.
 
 ### 7.4 Lie
-| Lie | Distance factor | Extra lateral σ (m) | Extra distance σ (m) | Flyer prob. |
-|---|---|---|---|---|
-| tee | 1.00 | 0 | 0 | 0 |
-| fairway | 1.00 | 0 | 0 | 0 |
-| first_cut | 0.98 | 1.0 | 2 | 0.05 |
-| rough | 0.93 | 3.0 | 6 | 0.15 |
-| deep_rough | 0.80 | 6.0 | 12 | 0.05 |
-| sand (fairway bunker) | 0.90 | 3.0 | 8 | 0 |
-| hardpan | 1.00 | 2.0 | 4 | 0 |
-| pine_straw | 0.97 | 2.0 | 4 | 0.05 |
 
-Distance factor divides out on the way in; extra σ is *not* normalised away —
+| Lie                   | Distance factor | Extra lateral σ (m) | Extra distance σ (m) | Flyer prob. |
+| --------------------- | --------------- | ------------------- | -------------------- | ----------- |
+| tee                   | 1.00            | 0                   | 0                    | 0           |
+| fairway               | 1.00            | 0                   | 0                    | 0           |
+| first_cut             | 0.98            | 1.0                 | 2                    | 0.05        |
+| rough                 | 0.93            | 3.0                 | 6                    | 0.15        |
+| deep_rough            | 0.80            | 6.0                 | 12                   | 0.05        |
+| sand (fairway bunker) | 0.90            | 3.0                 | 8                    | 0           |
+| hardpan               | 1.00            | 2.0                 | 4                    | 0           |
+| pine_straw            | 0.97            | 2.0                 | 4                    | 0.05        |
+
+Distance factor divides out on the way in; extra σ is _not_ normalised away —
 it's condition-specific variance that is added back only when re-applying.
 "Flyer" is represented in strategy as a mixture component (+8 % distance).
 
 ### 7.5 Stance slope
+
 Terrain suggestion: from the elevation grid, sample a 3 m plane fit around the
 ball position; project the gradient onto the intended line (uphill/downhill) and
 its normal (ball above/below feet). Thresholds: `|grade| < 2 %` → none,
 `2–6 %` → mild, `> 6 %` → severe. The player confirms or overrides.
 
 Effects (right-hander; mirrored for left):
-| Toggle | Distance | Lateral bias (per 100 m of shot) |
-|---|---|---|
-| uphill mild / severe | −3 % / −7 % | +0 / −1 m (slight pull) |
-| downhill mild / severe | +2 % / +4 % (lower, runs) | +1 / +2 m (slight push) |
-| ball above feet mild / severe | −1 % / −3 % | −4 / −9 m (draws left) |
-| ball below feet mild / severe | −1 % / −3 % | +4 / +9 m (fades right) |
+
+| Toggle                        | Distance                  | Lateral bias (per 100 m of shot) |
+| ----------------------------- | ------------------------- | -------------------------------- |
+| uphill mild / severe          | −3 % / −7 %               | +0 / −1 m (slight pull)          |
+| downhill mild / severe        | +2 % / +4 % (lower, runs) | +1 / +2 m (slight push)          |
+| ball above feet mild / severe | −1 % / −3 %               | −4 / −9 m (draws left)           |
+| ball below feet mild / severe | −1 % / −3 %               | +4 / +9 m (fades right)          |
 
 ### 7.6 Model versioning
+
 `condition_model_version` on every shot. Changing any coefficient bumps the
 version and triggers a background recompute of `neutral_*` for all shots, then
 a pattern refit. Old snapshots on the map (`recommendation`) are not recomputed.
@@ -425,6 +448,7 @@ a pattern refit. Old snapshots on the map (`recommendation`) are not recomputed.
 ## 8. Dispersion engine (`packages/engine/dispersion`)
 
 ### 8.1 Inputs per shot
+
 `(neutral_distance, neutral_lateral, weight, source, strike, conditions_bucket)`.
 
 - Course shots: from `end_position` in the club frame, normalised (§7).
@@ -438,12 +462,15 @@ a pattern refit. Old snapshots on the map (`recommendation`) are not recomputed.
   > 15` are excluded.
 
 ### 8.2 Recency weighting
+
 `w = source_weight · 0.5^(age_days / H)` with half-life `H = 180 days`. A shot
 from a year ago counts a quarter of a shot from today. `H` is a profile setting
 (a player rebuilding their swing can shorten it).
 
 ### 8.3 Prior (cold start)
+
 Each club starts with a prior expressed as pseudo-observations:
+
 - `n₀ = 8` effective shots.
 - Prior mean distance: `stock_total_m` if the player entered one, else a
   loft-based table scaled by the driver distance.
@@ -458,6 +485,7 @@ conjugate-normal shortcut and is deliberately simple: transparent to explain in
 the UI ("8 seeded shots + 23 of yours").
 
 ### 8.4 Pattern parameters (`club_patterns.params`)
+
 ```
 {
   distance: { mean, sd, q10, q50, q90 },
@@ -470,6 +498,7 @@ the UI ("8 seeded shots + 23 of yours").
   confidence: 'seeded' | 'forming' | 'established'
 }
 ```
+
 - **Left/right bias**: `lateral.mean` shifts the cone; **asymmetric width**:
   `sd_left` / `sd_right` are computed separately from the shots on each side of
   the mean (each half-SD uses its own side's squared deviations, doubled). The
@@ -480,6 +509,7 @@ the UI ("8 seeded shots + 23 of yours").
   draws seeded/forming cones with a dashed edge and shows the counts.
 
 ### 8.5 Condition-matched patterns
+
 Bucket key = `lie × head-wind bin (−∞,−4],(−4,−1],(−1,1],(1,4],(4,∞) m/s ×
 cross-wind bin (same edges)`. For each `(club, bucket)` with `n_effective ≥ 15`,
 store the **empirical** observed (not neutral) dispersion. On the course, if the
@@ -489,6 +519,7 @@ the modelled re-application and labels it "estimated". This gives the
 "real history when we have it, estimate when we don't" behaviour requested.
 
 ### 8.6 Learning the condition coefficients (Phase B+)
+
 Once ≥ 60 course shots exist for a club kind, fit `k_head, k_tail, k_cross,
 k_elev` by weighted least squares on the residual `observed − neutral_mean`
 against the condition components. Shrink towards the defaults (ridge) so a
@@ -496,6 +527,7 @@ handful of shots can't produce nonsense. Fitted coefficients live in
 `profiles.condition_overrides` and bump the player's model version.
 
 ### 8.7 Rendering
+
 - **Cone**: from the ball, draw the region bounded by lateral `q10/q90`
   (skewed by bias and half-SDs) at distances `q10 … q90`, as a filled sector
   with a darker core at 1σ. Extends beyond the map edge when zoomed in.
@@ -507,6 +539,7 @@ handful of shots can't produce nonsense. Fitted coefficients live in
   live (too noisy on course); strategy uses it numerically.
 
 ### 8.8 Refit trigger
+
 Patterns refit incrementally on the device after every shot (cheap: weighted
 moments) and authoritatively by an Edge Function after each round/import; the
 Edge Function result wins.
@@ -516,6 +549,7 @@ Edge Function result wins.
 ## 9. Strategy engine — DECADE (`packages/engine/strategy`)
 
 ### 9.1 Expected-strokes model
+
 `E(lie, distance_to_hole)` from `sg_baselines`: published amateur tables (scratch
 / 10 / 15 / 20 handicap bands, tee/fairway/rough/sand/recovery/green) with linear
 interpolation. Player-specific tables (`baseline = 'self'`) replace band tables
@@ -524,7 +558,9 @@ Penalty areas: `E = E(drop lie, drop distance) + 1`; OB: `E(start lie, start
 distance) + 1` (stroke and distance).
 
 ### 9.2 Evaluating one option
+
 For a candidate `(club, aim_point)`:
+
 1. Build the conditioned pattern for that club along the aim bearing (§7, §8),
    as a mixture: `(1 − p_miss) · main + p_miss · miss` plus the lie's flyer
    component if any.
@@ -538,6 +574,7 @@ For a candidate `(club, aim_point)`:
    expected distance left, and the 80 % ellipse for display.
 
 ### 9.3 Search
+
 - **Clubs**: all active clubs whose conditioned mean distance is between 60 %
   and 110 % of the distance to the pin for approaches; every club for tee shots
   and layups.
@@ -554,6 +591,7 @@ For a candidate `(club, aim_point)`:
   are computed while the player walks to the tee.
 
 ### 9.4 What the player sees
+
 - Recommended club + aim: "**7i — aim 9 yds left of pin**. 61 % green, 9 %
   bunker, 0.19 strokes better than at the pin."
 - One tap accepts (fills the pre-shot card); the player can drag the aim or
@@ -562,6 +600,7 @@ For a candidate `(club, aim_point)`:
   the chosen option are snapshotted into `shots.recommendation`.
 
 ### 9.5 Decision and execution grading (post-round)
+
 - `strategy_loss = E(chosen) − E(best)` (≥ 0). `decision_grade = good` if
   `strategy_loss ≤ 0.05`, else `poor`.
 - `execution_loss = E(chosen) − (E(actual landing) + 1)`… expressed as
@@ -577,19 +616,23 @@ For a candidate `(club, aim_point)`:
 ## 10. Strokes gained, scoring and handicap (`packages/engine/scoring`)
 
 ### 10.1 Strokes gained
+
 `sg_shot = E(before) − E(after) − stroke_count` where `E(after) = 0` if holed.
 Categories: **OTT** = first shot on par 4/5; **APP** = any other shot starting
+
 > 27 m (30 yds) from the hole not on the green; **ARG** = ≤ 27 m and not on the
-green; **PUTT** = on the green. Penalty records attach to the shot that caused
-them. Per-round and rolling 5/10/20-round trends; per-club SG for APP/OTT.
+> green; **PUTT** = on the green. Penalty records attach to the shot that caused
+> them. Per-round and rolling 5/10/20-round trends; per-club SG for APP/OTT.
 
 ### 10.2 Stableford and net
+
 Course handicap `= round(HI × slope/113 + (CR − par))`; playing handicap
 = 95 % of course handicap for individual Stableford (Golf Ireland allowance;
 configurable). Strokes received per hole from stroke index; points
 `= max(0, 2 + net_par − net_score)`.
 
 ### 10.3 WHS index (local computation)
+
 Adjusted gross applies net double bogey per hole. Differential
 `= (113 / slope) × (adjusted_gross − course_rating)` (PCC assumed 0; editable).
 Index = average of the best 8 of the last 20 differentials with the WHS
@@ -633,7 +676,7 @@ shown alongside as "CaddyMate estimate".
 ## 13. Course editor (web)
 
 - OSM import via Overpass for a bounding box: `golf=fairway|green|bunker|
-  water_hazard|rough|tee|hole` mapped into `hole_features`/`holes`/`tee_markers`.
+water_hazard|rough|tee|hole` mapped into `hole_features`/`holes`/`tee_markers`.
 - Map-draw tools (polygon, line, point) to fix or add features; snapping;
   per-hole assignment; hole line-of-play editing; stroke index and par entry.
 - Publishing creates a new `course_version`; rounds pin their version.
@@ -671,48 +714,55 @@ Tokens live in `packages/ui`.
 Each phase ends with something usable on a Saturday.
 
 ### Phase 0 — Foundation (1 week)
+
 Monorepo, CI, Supabase schema v2 + RLS, auth (email OTP + Google/Apple), Expo
 dev build on the Android phone, MapLibre satellite map centred on Moyvalley,
 engine package skeleton with geo maths tested.
-*Done when:* signed-in app shows the Moyvalley map with hole outlines.
+_Done when:_ signed-in app shows the Moyvalley map with hole outlines.
 
 ### Phase 1 — MVP round (2–3 weeks)
+
 Bag setup with stock distances, round start, play view, pre-shot card (club,
 lie, slope with terrain suggestion, intended line by tap and feature-relative),
 Hit / Ball here / Holed, chain reconstruction, edit shots, putt card, penalties,
 weather + elevation on every shot, seeded cone/ellipse from priors (no learning
 yet), scorecard with Stableford and course handicap, basic round list.
-*Done when:* a full 18 at Moyvalley is logged with no edits needed beyond one
+_Done when:_ a full 18 at Moyvalley is logged with no edits needed beyond one
 shot, and the cone drawn for the 7i is centred at ~160 yds adjusted for wind.
 
 ### Phase A — Sim import + neutral pattern model (2 weeks)
+
 Web app with CSV import (GSPro + Square), club aliasing, `normaliseShot`,
 pattern fitting with prior + recency + half-SDs + bias, condition buckets,
 refit Edge Function, cones/ellipses driven by real patterns with confidence
 labels, per-club pattern screen (scatter + ellipse + counts).
-*Done when:* after importing a sim session, the 7i ellipse on the course
+_Done when:_ after importing a sim session, the 7i ellipse on the course
 visibly reflects the sim scatter and the label says "forming/established".
 
 ### Phase B — DECADE strategy (3 weeks)
+
 Expected-strokes tables, option evaluation, search, recommendation card,
 accept/drag/re-rank, tee-shot club comparison, layup search, recommendation
 snapshots, performance budget met on device.
-*Done when:* on every shot the app proposes a club + aim with probabilities in
+_Done when:_ on every shot the app proposes a club + aim with probabilities in
 < 0.5 s and the choice is stored.
 
 ### Phase C — Review, grading, strokes gained, WHS (2–3 weeks)
+
 SG per shot/category, decision & execution grading, round summary, replay,
 dispersion evolution, miss tendencies, course view, WHS ledger and index,
 official-index override, web review dashboard mirrors the mobile screens.
-*Done when:* a round's review page shows strategy loss, execution loss, SG by
+_Done when:_ a round's review page shows strategy loss, execution loss, SG by
 category, and the index matches Golf Ireland within 0.2.
 
 ### Phase D — Garmin watch (2–3 weeks, includes SDK bridging risk)
+
 CIQ app, phone bridge module, Hit / Ball here / Holed / club picker from the
 wrist, distances + recommendation display, offline buffer.
-*Done when:* a full hole is logged without taking the phone out of the pocket.
+_Done when:_ a full hole is logged without taking the phone out of the pocket.
 
 ### Later (not scheduled)
+
 Practice/drill mode, carry estimation from sim carry ratios, learned condition
 coefficients (§8.6) if not done in B, iGolf course licensing, offline mode,
 multi-user features, billing.
@@ -765,6 +815,7 @@ Assumptions made where the interview was silent (flag any that are wrong):
    export of the Moyvalley course rows).
 
 Open questions for the next conversation:
+
 - **Q1.** Should the app carry a small "why" explanation with each
   recommendation (one line) or just the numbers? (Spec assumes one line.)
 - **Q2.** For tee shots on holes where you always hit driver, do you still want
