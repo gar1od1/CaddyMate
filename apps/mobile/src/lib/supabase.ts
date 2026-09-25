@@ -1,6 +1,8 @@
+import type { Db } from '@caddymate/api';
 import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 import { AppState } from 'react-native';
+import type { Database } from '@caddymate/db';
 import { env } from './env';
 
 /**
@@ -38,14 +40,22 @@ const secureStorage = {
   },
 };
 
-export const supabase = createClient(env.supabaseUrl, env.supabaseAnonKey, {
-  auth: {
-    storage: secureStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
+/**
+ * Typed client. When env is missing (CI export) a placeholder URL keeps
+ * createClient from throwing at import; the root layout blocks the UI.
+ */
+export const supabase: Db = createClient<Database>(
+  env.supabaseUrl || 'http://localhost.invalid',
+  env.supabaseAnonKey || 'missing-anon-key',
+  {
+    auth: {
+      storage: secureStorage,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
   },
-});
+);
 
 // Refresh tokens only while the app is in the foreground.
 AppState.addEventListener('change', (state) => {

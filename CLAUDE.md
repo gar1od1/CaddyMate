@@ -3,6 +3,7 @@
 Read `docs/SPEC.md` first; section numbers below refer to it.
 
 ## Repo
+
 - pnpm workspaces + Turborepo, hoisted `node_modules` (`.npmrc`). Node 22, pnpm 10.
 - `apps/mobile` Expo SDK 57 + expo-router (`src/app` routes). `apps/web` Next.js 16 App Router.
   `packages/engine` pure TS golf maths. `packages/db` migrations + generated types.
@@ -11,6 +12,7 @@ Read `docs/SPEC.md` first; section numbers below refer to it.
 - Club frame (§4): `+along` down the intended line, `+lateral` to the player's RIGHT.
 
 ## Commands (run from repo root; all must pass before you finish)
+
 ```
 CI=true pnpm install --no-frozen-lockfile   # only if you add deps
 pnpm format          # prettier --write
@@ -19,6 +21,7 @@ PGHOST=/tmp PGPORT=55432 PGUSER=postgres packages/db/scripts/local-db.sh   # mig
 (cd apps/web && NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=x pnpm build)
 (cd apps/mobile && EXPO_PUBLIC_SUPABASE_URL=https://example.supabase.co EXPO_PUBLIC_SUPABASE_ANON_KEY=x npx expo export --platform android --output-dir /tmp/expo-export)
 ```
+
 - Engine: vitest coverage thresholds are 100 % (`packages/engine/vitest.config.ts`). Use fast-check property tests for maths invariants.
 - Migrations: add a new file `packages/db/migrations/<timestamp>_<name>.sql`; never edit an applied one. Regenerate types with `pnpm --filter @caddymate/db db:types` after `local-db.sh`.
 - No network docs access in this environment: docs.expo.dev, supabase.com, maplibre.org are blocked. Read the installed package's `.d.ts` / README in `node_modules` instead of guessing APIs. `npx expo install` cannot reach Expo's API — pin versions from `node_modules/expo/bundledNativeModules.json` and use `pnpm add`.
