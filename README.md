@@ -20,6 +20,15 @@ packages/ui      shared design tokens
 supabase/        Supabase project config + Edge Functions
 ```
 
+## Status
+
+All spec phases are implemented and verified in CI-equivalent checks (typecheck,
+lint, tests, web production build, Android Metro export, migrations + RLS test,
+Deno tests for the Edge Functions). Not yet done: running on a physical device,
+deploying the Edge Functions and migrations to the production Supabase project,
+and compiling the Garmin app with the Connect IQ SDK. See `docs/decisions/` for
+choices made where the spec was silent.
+
 ## Getting started
 
 ```sh
