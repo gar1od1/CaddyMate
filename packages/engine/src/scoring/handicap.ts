@@ -1,0 +1,228 @@
+/**
+ * Course/playing handicap, Stableford and a local WHS Handicap Index
+ * (docs/SPEC.md §10.2–10.3, World Handicap System Rules 2024 edition).
+ */
+
+/** Slope rating of a course of standard difficulty. */
+export const STANDARD_SLOPE = 113;
+/** WHS maximum Handicap Index. */
+export const MAX_HANDICAP_INDEX = 54;
+/** Golf Ireland allowance for individual Stableford (configurable per call). */
+export const DEFAULT_STABLEFORD_ALLOWANCE = 0.95;
+
+/**
+ * Round to `dp` decimals, halves upward (WHS convention: 14.5 → 15,
+ * −2.5 → −2). The 1e-9 nudge absorbs binary noise such as 0.95 × 14 = 13.2999….
+ */
+export function roundHalfUp(x: number, dp = 0): number {
+  const f = 10 ** dp;
+  const r = Math.floor(x * f + 0.5 + 1e-9) / f;
+  return r === 0 ? 0 : r; // no −0
+}
+
+function assertInteger(name: string, v: number): void {
+  if (!Number.isInteger(v)) throw new RangeError(`${name} must be an integer`);
+}
+
+/** `round(HI × slope / 113 + (CR − par))`. */
+export function courseHandicap(
+  handicapIndex: number,
+  slope: number,
+  courseRating: number,
+  par: number,
+): number {
+  return roundHalfUp((handicapIndex * slope) / STANDARD_SLOPE + (courseRating - par));
+}
+
+/** `round(CH × allowance)`; 95 % for individual Stableford by default. */
+export function playingHandicap(
+  courseHandicapValue: number,
+  allowance = DEFAULT_STABLEFORD_ALLOWANCE,
+): number {
+  return roundHalfUp(courseHandicapValue * allowance);
+}
+
+/**
+ * Strokes received on a hole of `strokeIndex` (1–18). Handicaps above 18 wrap
+ * (a 20 gets two on SI 1–2). Plus handicaps (negative) give strokes back from
+ * SI 18 upward (a +2 gives one back on SI 18 and SI 17), returned as negatives.
+ */
+export function strokesReceivedOnHole(playingHcp: number, strokeIndex: number): number {
+  assertInteger('playingHcp', playingHcp);
+  assertInteger('strokeIndex', strokeIndex);
+  if (strokeIndex < 1 || strokeIndex > 18) throw new RangeError('strokeIndex must be 1–18');
+  const n = Math.abs(playingHcp);
+  const base = Math.floor(n / 18);
+  const rem = n % 18;
+  if (playingHcp >= 0) return base + (strokeIndex <= rem ? 1 : 0);
+  return 0 - (base + (strokeIndex > 18 - rem ? 1 : 0)); // `0 -` avoids −0
+}
+
+/** `max(0, 2 + par − net)`. */
+export function stablefordPoints(netStrokes: number, par: number): number {
+  return Math.max(0, 2 + par - netStrokes);
+}
+
+/** Gross capped at net double bogey: `par + 2 + strokes received`. */
+export function netDoubleBogeyAdjusted(
+  gross: number,
+  par: number,
+  strokesReceived: number,
+): number {
+  return Math.min(gross, par + 2 + strokesReceived);
+}
+
+/** `(113 / slope) × (adjusted_gross − CR − PCC)`, rounded to 0.1. */
+export function scoreDifferential(
+  adjustedGross: number,
+  courseRating: number,
+  slope: number,
+  pcc = 0,
+): number {
+  return roundHalfUp((STANDARD_SLOPE / slope) * (adjustedGross - courseRating - pcc), 1);
+}
+
+/** WHS Rule 5.2 table: scores in record → (differentials used, adjustment). */
+export function whsScoreTable(count: number): { used: number; adjustment: number } | null {
+  if (count < 3) return null;
+  if (count === 3) return { used: 1, adjustment: -2 };
+  if (count === 4) return { used: 1, adjustment: -1 };
+  if (count === 5) return { used: 1, adjustment: 0 };
+  if (count === 6) return { used: 2, adjustment: -1 };
+  if (count <= 8) return { used: 2, adjustment: 0 };
+  if (count <= 11) return { used: 3, adjustment: 0 };
+  if (count <= 14) return { used: 4, adjustment: 0 };
+  if (count <= 16) return { used: 5, adjustment: 0 };
+  if (count <= 18) return { used: 6, adjustment: 0 };
+  if (count === 19) return { used: 7, adjustment: 0 };
+  return { used: 8, adjustment: 0 };
+}
+
+export interface DatedDifferential {
+  value: number;
+  /** When the round was played (ISO string or Date). */
+  date: string | Date;
+}
+
+export type IndexCap = 'none' | 'soft' | 'hard';
+
+export interface HandicapIndexResult {
+  index: number;
+  /** Index before soft/hard capping. */
+  uncapped: number;
+  cap: IndexCap;
+  /** Differentials considered (most recent, ≤ 20). */
+  counted: number;
+  /** Lowest differentials averaged. */
+  used: number;
+  adjustment: number;
+}
+
+/**
+ * Handicap Index from a scoring record. Uses the most recent 20 differentials
+ * (same-date ties: later in the input array counts as more recent), averages
+ * the lowest per {@link whsScoreTable}, applies the adjustment and rounds to
+ * 0.1. When `lowIndex365` (the Low HI of the last 365 days) is supplied, the
+ * soft cap halves any increase beyond +3.0 and the hard cap limits the rise to
+ * +5.0. Returns null with fewer than 3 differentials. Exceptional-score
+ * reductions are not applied.
+ */
+export function handicapIndex(
+  differentials: readonly DatedDifferential[],
+  lowIndex365?: number,
+): HandicapIndexResult | null {
+  const recent = differentials
+    .map((d, i) => ({ value: d.value, t: new Date(d.date).getTime(), i }))
+    .sort((a, b) => b.t - a.t || b.i - a.i)
+    .slice(0, 20);
+  const rule = whsScoreTable(recent.length);
+  if (rule === null) return null;
+  const lowest = recent
+    .map((d) => d.value)
+    .sort((a, b) => a - b)
+    .slice(0, rule.used);
+  const avg = lowest.reduce((s, v) => s + v, 0) / rule.used;
+  const uncapped = Math.min(MAX_HANDICAP_INDEX, roundHalfUp(avg + rule.adjustment, 1));
+  let index = uncapped;
+  let cap: IndexCap = 'none';
+  if (lowIndex365 !== undefined) {
+    const rise = uncapped - lowIndex365;
+    if (rise > 3) {
+      const soft = roundHalfUp(lowIndex365 + 3 + (rise - 3) / 2, 1);
+      const hard = roundHalfUp(lowIndex365 + 5, 1);
+      [index, cap] = soft > hard ? [hard, 'hard'] : [soft, 'soft'];
+    }
+  }
+  return {
+    index,
+    uncapped,
+    cap,
+    counted: recent.length,
+    used: rule.used,
+    adjustment: rule.adjustment,
+  };
+}
+
+export interface ScorecardHoleInput {
+  par: number;
+  strokeIndex: number;
+  /** Gross strokes, or null for a pick-up / no return (scores net double bogey, 0 points). */
+  gross: number | null;
+}
+
+export interface ScorecardHole extends ScorecardHoleInput {
+  strokesReceived: number;
+  net: number | null;
+  points: number;
+  adjustedGross: number;
+}
+
+export interface Scorecard {
+  holes: ScorecardHole[];
+  par: number;
+  /** Null when any hole has no gross score. */
+  gross: number | null;
+  net: number | null;
+  points: number;
+  adjustedGross: number;
+  /** Score differential; only for complete 18-hole cards, else null. */
+  differential: number | null;
+}
+
+/** Per-hole net, Stableford points and net-double-bogey adjusted gross, plus totals. */
+export function roundScorecard(
+  holes: readonly ScorecardHoleInput[],
+  playingHcp: number,
+  courseRating: number,
+  slope: number,
+  pcc = 0,
+): Scorecard {
+  const out = holes.map((h): ScorecardHole => {
+    const strokesReceived = strokesReceivedOnHole(playingHcp, h.strokeIndex);
+    const ndb = h.par + 2 + strokesReceived;
+    if (h.gross === null) {
+      return { ...h, strokesReceived, net: null, points: 0, adjustedGross: ndb };
+    }
+    const net = h.gross - strokesReceived;
+    return {
+      ...h,
+      strokesReceived,
+      net,
+      points: stablefordPoints(net, h.par),
+      adjustedGross: netDoubleBogeyAdjusted(h.gross, h.par, strokesReceived),
+    };
+  });
+  const sum = (f: (h: ScorecardHole) => number): number => out.reduce((s, h) => s + f(h), 0);
+  const complete = out.every((h) => h.gross !== null);
+  const adjustedGross = sum((h) => h.adjustedGross);
+  return {
+    holes: out,
+    par: sum((h) => h.par),
+    gross: complete ? sum((h) => h.gross!) : null,
+    net: complete ? sum((h) => h.net!) : null,
+    points: sum((h) => h.points),
+    adjustedGross,
+    differential:
+      holes.length === 18 ? scoreDifferential(adjustedGross, courseRating, slope, pcc) : null,
+  };
+}

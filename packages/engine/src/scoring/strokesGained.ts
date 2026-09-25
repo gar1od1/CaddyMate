@@ -1,0 +1,141 @@
+/**
+ * Strokes gained per shot, per round and as rolling trends (docs/SPEC.md §10.1).
+ *
+ *   sg_shot = E(before) − E(after) − strokes_charged,   E(after) = 0 if holed.
+ */
+import type { Penalty } from '../types/index.js';
+import { expectedStrokes } from './baselines.js';
+import type { BaselineId, BaselineTable, SgLieCategory } from './baselines.js';
+
+export type SgCategory = 'ott' | 'app' | 'arg' | 'putt';
+
+export const SG_CATEGORIES: readonly SgCategory[] = ['ott', 'app', 'arg', 'putt'];
+
+/** Shots starting within this distance of the hole (off the green) are ARG. */
+export const SG_ARG_MAX_M = 27;
+
+export interface SgPosition {
+  category: SgLieCategory;
+  distanceM: number;
+}
+
+export interface SgShotInput {
+  before: SgPosition;
+  after: SgPosition | 'holed';
+  /** `shots.stroke_count`: 1, or 2 for a stroke-and-distance record. Default 1. */
+  strokeCount?: number;
+  /** Penalty caused by this shot (§10.1: it attaches to the shot that caused it). */
+  penalty?: Penalty;
+}
+
+/**
+ * Strokes charged to a shot. Every penalty relief option in the Rules costs
+ * exactly one stroke, so a penalised shot costs 2; a stroke-and-distance
+ * record that already carries `stroke_count = 2` is not double-counted.
+ */
+export function strokesCharged(strokeCount = 1, penalty: Penalty = 'none'): number {
+  return Math.max(strokeCount, penalty === 'none' ? 1 : 2);
+}
+
+/** Strokes gained by one shot against `baseline` (default scratch). */
+export function sgForShot(
+  shot: SgShotInput,
+  baseline: BaselineTable | BaselineId = 'scratch',
+): number {
+  const eBefore = expectedStrokes(baseline, shot.before.category, shot.before.distanceM);
+  const eAfter =
+    shot.after === 'holed'
+      ? 0
+      : expectedStrokes(baseline, shot.after.category, shot.after.distanceM);
+  return eBefore - eAfter - strokesCharged(shot.strokeCount, shot.penalty);
+}
+
+export interface SgCategoryInput {
+  before: SgPosition;
+  /** 1-based order of the shot within the hole (`shots.seq`). */
+  seq: number;
+  par: number;
+}
+
+/**
+ * OTT = first shot on a par 4/5; PUTT = starts on the green; otherwise APP
+ * beyond 27 m (30 yds) and ARG within it.
+ */
+export function sgCategory(shot: SgCategoryInput): SgCategory {
+  if (shot.seq === 1 && shot.par >= 4) return 'ott';
+  if (shot.before.category === 'green') return 'putt';
+  return shot.before.distanceM > SG_ARG_MAX_M ? 'app' : 'arg';
+}
+
+/** A shot with its strokes gained already computed (`shots.sg`, `shots.sg_category`). */
+export interface SgShotRecord {
+  sg: number;
+  category: SgCategory;
+  clubId?: string | null;
+}
+
+export interface SgClubSummary {
+  sg: number;
+  count: number;
+}
+
+export interface SgRoundSummary {
+  total: number;
+  byCategory: Record<SgCategory, number>;
+  counts: Record<SgCategory, number>;
+  /** Per-club SG for OTT and APP shots only (§10.1). */
+  byClub: Record<string, SgClubSummary>;
+}
+
+const zeroByCategory = (): Record<SgCategory, number> => ({ ott: 0, app: 0, arg: 0, putt: 0 });
+
+/** Totals for one round. */
+export function sgSummary(shots: readonly SgShotRecord[]): SgRoundSummary {
+  const byCategory = zeroByCategory();
+  const counts = zeroByCategory();
+  const byClub: Record<string, SgClubSummary> = {};
+  let total = 0;
+  for (const s of shots) {
+    total += s.sg;
+    byCategory[s.category] += s.sg;
+    counts[s.category] += 1;
+    if (s.clubId != null && (s.category === 'ott' || s.category === 'app')) {
+      const c = (byClub[s.clubId] ??= { sg: 0, count: 0 });
+      c.sg += s.sg;
+      c.count += 1;
+    }
+  }
+  return { total, byCategory, counts, byClub };
+}
+
+export interface RollingSgPoint {
+  /** Rounds in the window (fewer than `window` at the start of the series). */
+  n: number;
+  total: number;
+  byCategory: Record<SgCategory, number>;
+}
+
+/**
+ * Trailing mean per round over the last `window` rounds (e.g. 5/10/20).
+ * `rounds` must be in chronological order; the output is aligned with it.
+ */
+export function rollingSg(
+  rounds: readonly Pick<SgRoundSummary, 'total' | 'byCategory'>[],
+  window: number,
+): RollingSgPoint[] {
+  if (!Number.isInteger(window) || window < 1) {
+    throw new RangeError('window must be a positive integer');
+  }
+  return rounds.map((_, i) => {
+    const slice = rounds.slice(Math.max(0, i - window + 1), i + 1);
+    const n = slice.length;
+    const byCategory = zeroByCategory();
+    let total = 0;
+    for (const r of slice) {
+      total += r.total;
+      for (const c of SG_CATEGORIES) byCategory[c] += r.byCategory[c];
+    }
+    for (const c of SG_CATEGORIES) byCategory[c] /= n;
+    return { n, total: total / n, byCategory };
+  });
+}
