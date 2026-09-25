@@ -3,21 +3,24 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "echo no tests yet"
+    "test": "vitest run"
   },
   "dependencies": {
+    "@caddymate/db": "workspace:*",
     "@caddymate/engine": "workspace:*",
+    "@caddymate/ui": "workspace:*",
+    "@mapbox/mapbox-gl-draw": "^1.5.2",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
+    "maplibre-gl": "^6.11.2",
     "next": "16.3.6",
     "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "@caddymate/ui": "workspace:*"
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -27,6 +30,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.0.2",
+    "@types/geojson": "^7946.0.16"
   }
 }

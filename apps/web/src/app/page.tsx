@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { SignOutButton } from './sign-out-button';
@@ -35,7 +36,12 @@ export default async function Home() {
         <h2 className="font-semibold">Coming next</h2>
         <ul className="text-muted mt-2 list-disc pl-5 text-sm">
           <li>Simulator import (GSPro / Square) — Phase A</li>
-          <li>Course editor — Phase 1</li>
+          <li>
+            <Link href="/courses" className="link">
+              Course editor
+            </Link>{' '}
+            — Phase 1
+          </li>
           <li>Round review — Phase C</li>
         </ul>
       </section>

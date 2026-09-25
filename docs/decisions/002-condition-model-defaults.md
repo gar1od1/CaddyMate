@@ -13,14 +13,14 @@ lie → slope → wind/density → elevation and sum exactly to the totals.
 
 ## Values chosen where SPEC §7 gave none
 
-| Coefficient | Value | Rationale |
-|---|---|---|
-| `k_cross` | 0.012 per m/s (0 for putter) | ≈ 8 m drift for a 150 m 7-iron in a 10 mph crosswind |
-| `hang` per kind | driver 0.6, wood 0.7, hybrid 0.85, iron 1.0, wedge 1.25, putter 0 | More loft → more time aloft → more drift; a loft curve is interpolated instead when `loftDeg` is known |
-| `k_elev` hybrid | 0.8 | Midway between woods (0.7) and irons (0.9) |
-| `green` lie row | all neutral | `Lie` includes `green`; putts are not normalised |
-| `minAirMultiplier` | 0.05 | A > 45 m/s headwind must not zero the multiplier and break normalisation |
-| Missing/NaN wind | calm bin | `conditionBucketKey` always returns a key |
+| Coefficient        | Value                                                             | Rationale                                                                                              |
+| ------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `k_cross`          | 0.012 per m/s (0 for putter)                                      | ≈ 8 m drift for a 150 m 7-iron in a 10 mph crosswind                                                   |
+| `hang` per kind    | driver 0.6, wood 0.7, hybrid 0.85, iron 1.0, wedge 1.25, putter 0 | More loft → more time aloft → more drift; a loft curve is interpolated instead when `loftDeg` is known |
+| `k_elev` hybrid    | 0.8                                                               | Midway between woods (0.7) and irons (0.9)                                                             |
+| `green` lie row    | all neutral                                                       | `Lie` includes `green`; putts are not normalised                                                       |
+| `minAirMultiplier` | 0.05                                                              | A > 45 m/s headwind must not zero the multiplier and break normalisation                               |
+| Missing/NaN wind   | calm bin                                                          | `conditionBucketKey` always returns a key                                                              |
 
 Head/tail wind coefficients stay single values (not per kind) as §7.1 states; only
 crosswind drift is kind-dependent. Multiple slope toggles add.

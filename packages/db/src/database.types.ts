@@ -973,6 +973,30 @@ export type Database = {
     Functions: {
       can_read_course: { Args: { cid: string }; Returns: boolean };
       can_write_course: { Args: { cid: string }; Returns: boolean };
+      course_assert_writer: { Args: { p_course_id: string }; Returns: undefined };
+      course_copy_version: {
+        Args: { p_course_id: string; p_from: number; p_to: number };
+        Returns: undefined;
+      };
+      course_create: {
+        Args: {
+          p_boundary?: Json;
+          p_country: string;
+          p_lat: number;
+          p_lng: number;
+          p_name: string;
+          p_osm_relation_id?: string;
+          p_source?: Database['public']['Enums']['course_source'];
+        };
+        Returns: string;
+      };
+      course_elevation_extent: { Args: { p_course_id: string; p_version?: number }; Returns: Json };
+      course_ensure_draft: { Args: { p_course_id: string }; Returns: undefined };
+      course_geog: { Args: { j: Json }; Returns: unknown };
+      course_geojson: { Args: { g: unknown }; Returns: Json };
+      course_get: { Args: { p_course_id: string; p_version?: number }; Returns: Json };
+      course_publish: { Args: { p_change_reason?: string; p_course_id: string }; Returns: number };
+      course_save_draft: { Args: { p_course_id: string; p_doc: Json }; Returns: undefined };
     };
     Enums: {
       club_kind: 'driver' | 'wood' | 'hybrid' | 'iron' | 'wedge' | 'putter';
