@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, Label } from '@/components/ui/Section';
 import { saveRound } from '@/data/actions';
 import { useCourseBundle, useHoleScores, useRound, useRoundShots } from '@/data/hooks';
+import { gradeRoundWhenSynced } from '@/features/review/useReview';
 import { buildScorecard, finishTotals } from '@/features/scorecard/useScorecard';
 import { shortDate, toPar } from '@/lib/format';
 
@@ -44,7 +45,11 @@ export default function Summary() {
       // Engine scoring: Stableford, net-double-bogey adjusted gross, differential.
       ...finishTotals(card),
     })
-      .then(() => router.dismissTo('/'))
+      .then(() => {
+        // Write SG and grades once the round's shots are on the server (§9.5).
+        if (status === 'complete') void gradeRoundWhenSynced(r.id).catch(() => undefined);
+        router.dismissTo('/');
+      })
       .catch((e: unknown) => Alert.alert('Could not save', e instanceof Error ? e.message : ''))
       .finally(() => setBusy(false));
   };
@@ -96,9 +101,20 @@ export default function Summary() {
           <Button variant="ghost" label="Abandon round" onPress={() => finish('abandoned')} />
         </>
       ) : (
-        <Text style={styles.caption}>
-          {r.status === 'complete' ? 'Round complete.' : 'Round abandoned.'}
-        </Text>
+        <>
+          {r.status === 'complete' ? (
+            <Button
+              big
+              label="Review round"
+              onPress={() =>
+                router.push({ pathname: '/review/[roundId]', params: { roundId: r.id } })
+              }
+            />
+          ) : null}
+          <Text style={styles.caption}>
+            {r.status === 'complete' ? 'Round complete.' : 'Round abandoned.'}
+          </Text>
+        </>
       )}
     </ScrollView>
   );

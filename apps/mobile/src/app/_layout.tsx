@@ -58,6 +58,9 @@ function Gate() {
       <Stack.Screen name="round/[id]/index" options={{ headerShown: false }} />
       <Stack.Screen name="round/[id]/scorecard" options={{ title: 'Scorecard' }} />
       <Stack.Screen name="round/[id]/summary" options={{ title: 'Round summary' }} />
+      <Stack.Screen name="review/[roundId]" options={{ title: 'Round review' }} />
+      <Stack.Screen name="review/trends" options={{ title: 'Trends' }} />
+      <Stack.Screen name="review/clubs/[clubId]" options={{ title: 'Dispersion' }} />
     </Stack>
   );
 }

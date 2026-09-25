@@ -34,6 +34,17 @@ function RoundRow({ round }: { round: Round }) {
         <Text style={styles.rowScore}>{summary.gross || '–'}</Text>
         <Text style={styles.rowSub}>{summary.points} pts</Text>
       </View>
+      {round.status === 'complete' ? (
+        <Pressable
+          hitSlop={8}
+          style={({ pressed }) => [styles.review, pressed && { opacity: 0.7 }]}
+          onPress={() =>
+            router.push({ pathname: '/review/[roundId]', params: { roundId: round.id } })
+          }
+        >
+          <Text style={styles.reviewText}>Review</Text>
+        </Pressable>
+      ) : null}
     </Pressable>
   );
 }
@@ -64,6 +75,7 @@ export default function Home() {
       </View>
       <View style={styles.actions}>
         <Button variant="secondary" label="My bag" onPress={() => router.push('/bag')} />
+        <Button variant="secondary" label="Trends" onPress={() => router.push('/review/trends')} />
         <Button variant="ghost" label="Sign out" onPress={() => void supabase.auth.signOut()} />
       </View>
       <View style={styles.listHeader}>
@@ -92,7 +104,7 @@ export default function Home() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg, padding: spacing.lg, gap: spacing.md },
   hero: { flexDirection: 'row', gap: spacing.md },
-  actions: { flexDirection: 'row', justifyContent: 'space-between' },
+  actions: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
   listHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -110,6 +122,14 @@ const styles = StyleSheet.create({
   rowTitle: { ...type.heading, color: colors.text },
   rowSub: { ...type.caption, color: colors.textMuted },
   rowScore: { fontSize: 28, fontWeight: '800', color: colors.text },
+  review: {
+    marginLeft: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+  },
+  reviewText: { ...type.caption, color: colors.accentText, fontWeight: '800' },
   empty: { ...type.body, color: colors.textMuted, textAlign: 'center', marginTop: spacing.xl },
   footer: { ...type.caption, color: colors.textFaint, textAlign: 'center' },
 });
