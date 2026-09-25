@@ -1,10 +1,13 @@
 /**
- * State and actions for the play view (docs/SPEC.md §5.2–§5.6). Reads the
- * round, course and shots from the local store, watches GPS, keeps the
- * pre-shot card state, and turns button presses into `shotOps` + `saveHole`.
+ * State and actions for the play view (docs/SPEC.md §5.2–§5.6, §8.7, §9.4).
+ * Reads the round, course and shots from the local store, watches GPS, keeps
+ * the pre-shot card state, draws the conditioned pattern of the selected
+ * club, runs the strategy search for the ball position, and turns button
+ * presses into `shotOps` + `saveHole`.
  */
 import {
   defaultAimPoint,
+  effectivePattern,
   featureAnchor,
   greenDistances,
   hazardsAlongLine,
@@ -19,6 +22,7 @@ import {
   type Round,
   type ShapeKind,
   type Shot,
+  type StoredConditionPattern,
   type TargetRef,
 } from '@caddymate/api';
 import {
@@ -26,16 +30,32 @@ import {
   feetToMetres,
   haversineDistanceM,
   initialBearingDeg,
+  stanceSlopeSuggestion,
+  toRecommendationSnapshot,
+  type ClubPattern,
+  type Handedness,
   type LatLng,
+  type RecommendationSnapshot,
   type StanceSlope,
+  type StrategyOption,
 } from '@caddymate/engine';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert } from 'react-native';
 import { pinFor, saveHole, setPin, strokeIndexFor } from '@/data/actions';
-import { placeholderCone } from '@/lib/cone';
+import { buildDispersionOverlay, currentBucketKey } from '@/lib/cone';
 import { acquireShotFix, useLiveFix } from '@/lib/location';
+import { elevationSampler, useCourseGrid } from '@/lib/terrain';
 import { useWeather } from '@/lib/weather';
+import { currentConditions, playsLike } from './conditions';
+import {
+  buildRecommendInput,
+  evaluateCardChoice,
+  recommendationKey,
+  strategyClubs,
+  type PositionInput,
+} from './recommendation';
 import * as ops from './shotOps';
+import { recommendNow, useChoiceEvaluation, useRecommendation } from './useRecommendation';
 
 export type MapMode =
   | { kind: 'aim' }
@@ -92,6 +112,8 @@ export interface PostShot {
   penalty: PenaltyKind;
 }
 
+const NO_PATTERNS: ReadonlyMap<string, ClubPattern> = new Map();
+
 export function usePlay(args: {
   round: Round;
   bundle: CourseBundle;
@@ -99,8 +121,19 @@ export function usePlay(args: {
   shots: readonly Shot[];
   holeNumber: number;
   userId: string;
+  /** Stored neutral patterns by club id (§8.4); clubs without one use the seeded prior. */
+  patterns?: ReadonlyMap<string, ClubPattern>;
+  /** Stored empirical condition-bucket patterns (§8.5). */
+  conditionPatterns?: readonly StoredConditionPattern[];
+  handedness?: Handedness;
+  /** Round's handicap index, else the profile's official one. */
+  handicapIndex?: number | null;
 }) {
   const { round, bundle, clubs, holeNumber, userId } = args;
+  const patterns = args.patterns ?? NO_PATTERNS;
+  const conditionPatterns = args.conditionPatterns;
+  const handedness: Handedness = args.handedness ?? 'R';
+  const handicapIndex = args.handicapIndex ?? null;
   const hole: Hole | undefined = bundle.holes.find((h) => h.number === holeNumber);
   const shots = useMemo(
     () => ops.ordered(args.shots.filter((s) => s.holeNumber === holeNumber)),
@@ -126,6 +159,9 @@ export function usePlay(args: {
     setPostShot(null);
     setPuttMode(null);
   }, [holeNumber]);
+
+  const grid = useCourseGrid(round.courseId, round.courseVersion);
+  const elevAt = useMemo(() => elevationSampler(grid), [grid]);
 
   const tee = useMemo(() => {
     const ts = bundle.teeSets.find((t) => t.id === round.teeSetId);
@@ -157,18 +193,70 @@ export function usePlay(args: {
 
   const distToPin = here && pin ? haversineDistanceM(here, pin) : null;
   const autoClub = suggestClub(clubs, distToPin, onTee && (hole?.par ?? 4) >= 4);
-  const club = clubs.find((c) => c.id === card.clubId) ?? autoClub;
   const putter = clubs.find((c) => c.kind === 'putter') ?? null;
 
+  const weather = useWeather(here ?? pin, `${round.id}:${String(holeNumber)}`);
+  const wind = windOverride
+    ? { speedMps: windOverride.speedMps, fromDeg: windOverride.fromDeg, override: true }
+    : weather
+      ? { speedMps: weather.windSpeedMps, fromDeg: weather.windFromDeg, override: false }
+      : null;
+  const elevHere = here && elevAt ? elevAt(here) : null;
+  const elevPin = pin && elevAt ? elevAt(pin) : null;
+
+  // --- strategy (§9): searched from the ball, the stable chain position -----
+  const bag = useMemo(
+    () => strategyClubs(clubs, patterns, handicapIndex),
+    [clubs, patterns, handicapIndex],
+  );
+  const recFrom = !pending && !done && !isPuttMode ? ball : null;
+  const elevBall = recFrom && elevAt ? elevAt(recFrom) : null;
+  const position: PositionInput | null =
+    recFrom && pin && hole && lie !== 'green'
+      ? {
+          start: recFrom,
+          startLie: lie,
+          pin,
+          hole,
+          conditions: currentConditions(weather, windOverride, elevBall, elevPin),
+          slope: card.slope,
+          handedness,
+          bag,
+          handicapIndex,
+          isTeeShot: onTee,
+        }
+      : null;
+  const recKey = position ? recommendationKey(position) : null;
+  const recInput = useMemo(
+    () => (position ? buildRecommendInput(position) : null),
+    // The key captures every input that changes the search.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [recKey],
+  );
+  const { rec, computing: recComputing } = useRecommendation(recInput, recInput ? recKey : null);
+  const recTop = rec?.options[0] ?? null;
+
+  // Club default: the card, else the recommendation, else by stock distance (§5.3).
+  const club =
+    clubs.find((c) => c.id === card.clubId) ??
+    (recTop ? clubs.find((c) => c.id === recTop.clubId) : undefined) ??
+    autoClub;
+  const recForClub = rec && club ? (rec.options.find((o) => o.clubId === club.id) ?? null) : null;
+
+  // Aim default: the recommendation's aim for this club, else along the line of play.
   const aim: Aim | null = useMemo(() => {
     if (card.aim) return card.aim;
+    if (recForClub) return { target: recForClub.aim, ref: null };
     if (!here || !pin) return null;
     return {
       target: defaultAimPoint(here, hole?.lineOfPlay ?? null, pin, club?.stockTotalM ?? 150),
       ref: null,
     };
-  }, [card.aim, here, pin, hole?.lineOfPlay, club?.stockTotalM]);
+  }, [card.aim, recForClub, here, pin, hole?.lineOfPlay, club?.stockTotalM]);
   const bearing = here && aim ? initialBearingDeg(here, aim.target) : null;
+
+  // The card's (club, aim) re-scored live (§9.4).
+  const choice = useChoiceEvaluation(recInput, recKey, rec, club?.id ?? null, aim?.target ?? null);
 
   const green =
     here && hole?.greenCentre ? greenDistances(here, hole.greenCentre, hole.green) : null;
@@ -177,23 +265,72 @@ export function usePlay(args: {
       ? hazardsAlongLine(here, bearing, hole.features, (club?.stockTotalM ?? 200) * 1.15)
       : [];
 
-  // TODO(wave-2): replace with engine pattern (see lib/cone.ts).
+  // --- conditioned pattern of the selected club (§8.5, §8.7) ---------------
+  const elevAim = aim && elevAt ? elevAt(aim.target) : null;
+  const aimConditions = currentConditions(weather, windOverride, elevHere, elevAim);
+  const neutralPattern = useMemo(
+    () =>
+      club && club.kind !== 'putter'
+        ? effectivePattern(club, patterns.get(club.id), { handicapIndex })
+        : null,
+    [club, patterns, handicapIndex],
+  );
+  const bucketKey = bearing !== null ? currentBucketKey(lie, aimConditions, bearing) : null;
+  const empirical =
+    club && bucketKey
+      ? (conditionPatterns?.find((p) => p.clubId === club.id && p.bucketKey === bucketKey) ?? null)
+      : null;
   const cone =
-    here && bearing !== null && club?.stockTotalM && !isPuttMode
-      ? placeholderCone(here, bearing, club.stockTotalM)
+    here && aim && club && neutralPattern && !isPuttMode
+      ? buildDispersionOverlay({
+          origin: here,
+          aim: aim.target,
+          club,
+          pattern: neutralPattern,
+          empirical,
+          conditions: aimConditions,
+          lie,
+          slope: card.slope,
+          handedness,
+          green: hole?.green ?? null,
+          greenFrontM: green?.frontM ?? null,
+        })
       : null;
 
-  const weather = useWeather(here ?? pin, `${round.id}:${String(holeNumber)}`);
-  const wind = windOverride
-    ? { speedMps: windOverride.speedMps, fromDeg: windOverride.fromDeg, override: true }
-    : weather
-      ? { speedMps: weather.windSpeedMps, fromDeg: weather.windFromDeg, override: false }
+  // --- plays like (§17 Q4) and the terrain slope suggestion (§7.5) ---------
+  const pinOverridden = !!round.pinOverrides[String(holeNumber)];
+  const headlineM = pinOverridden ? distToPin : (green?.centreM ?? distToPin);
+  const plArgs = { club, lie, slope: card.slope, handedness };
+  const playsLikeM =
+    here && pin
+      ? playsLike(headlineM, {
+          ...plArgs,
+          bearingDeg: initialBearingDeg(here, pin),
+          conditions: currentConditions(weather, windOverride, elevHere, elevPin),
+        })
       : null;
+  const targetM = here && aim ? haversineDistanceM(here, aim.target) : null;
+  const targetPlaysLikeM = playsLike(targetM, {
+    ...plArgs,
+    bearingDeg: bearing,
+    conditions: aimConditions,
+  });
+  const slopeSuggestion: StanceSlope | null = useMemo(
+    () =>
+      grid && here && bearing !== null && !isPuttMode
+        ? stanceSlopeSuggestion(grid, here, bearing, handedness)
+        : null,
+    [grid, here, bearing, handedness, isPuttMode],
+  );
 
   const cardFields = useCallback(
     (from: LatLng | null, altitude: number | null): ops.CardFields => {
       const target = aim?.target ?? null;
       const b = from && target ? initialBearingDeg(from, target) : bearing;
+      // Grid heights for start and target when both are on it, else GPS altitude at the start.
+      const gStart = from && elevAt ? elevAt(from) : null;
+      const gEnd = target && elevAt ? elevAt(target) : null;
+      const onGrid = gStart !== null && gEnd !== null;
       return {
         clubId: club?.id ?? null,
         lie,
@@ -202,11 +339,42 @@ export function usePlay(args: {
         targetBearingDeg: b === null ? null : Math.round(b * 100) / 100,
         targetRef: aim?.ref ?? null,
         intendedShape: card.shape,
-        conditions: ops.buildConditions(weather, windOverride, b, altitude),
+        conditions: ops.buildConditions(
+          weather,
+          windOverride,
+          b,
+          onGrid ? gStart : altitude,
+          onGrid ? gEnd : null,
+        ),
+        slopeSuggested: slopeSuggestion,
       };
     },
-    [aim, bearing, club?.id, lie, card.slope, card.shape, weather, windOverride],
+    [
+      aim,
+      bearing,
+      club?.id,
+      lie,
+      card.slope,
+      card.shape,
+      weather,
+      windOverride,
+      elevAt,
+      slopeSuggestion,
+    ],
   );
+
+  /** The recommendation snapshot for Hit (§9.4): ranked options + what is on the card. */
+  const snapshotForHit = (): RecommendationSnapshot | null => {
+    if (!recInput || !recKey || !club) return null;
+    try {
+      const r = rec ?? recommendNow(recInput, recKey);
+      if (!r) return null;
+      const chosen = aim ? evaluateCardChoice(recInput, r, club.id, aim.target) : null;
+      return toRecommendationSnapshot(r, chosen);
+    } catch {
+      return null;
+    }
+  };
 
   const persist = useCallback(
     async (next: readonly Shot[]) => {
@@ -235,7 +403,7 @@ export function usePlay(args: {
       const f = await acquireShotFix(fix);
       if (!f) return;
       setPostShot(null);
-      await persist(ops.hit(shots, base, cardFields(f.point, f.altitudeM), f));
+      await persist(ops.hit(shots, base, cardFields(f.point, f.altitudeM), f, snapshotForHit()));
     });
 
   const onBallHere = () =>
@@ -248,6 +416,7 @@ export function usePlay(args: {
         cardFields(ball, fix?.altitudeM ?? null),
         f,
         tee,
+        (elevAt ? elevAt(f.point) : null) ?? f.altitudeM,
       );
       await persist(next);
       resetCard();
@@ -342,6 +511,15 @@ export function usePlay(args: {
   const aimAtFeature = (ref: TargetRef, target: LatLng) =>
     setCard((c) => ({ ...c, aim: { target, ref } }));
 
+  /** One tap accepts a strategy option: fills club and aim on the card (§9.4). */
+  const acceptOption = (o: StrategyOption) =>
+    setCard((c) => ({ ...c, clubId: o.clubId, aim: { target: o.aim, ref: null } }));
+
+  /** One tap confirms the terrain slope suggestion (§7.5). */
+  const acceptSlope = () => {
+    if (slopeSuggestion) setCard((c) => ({ ...c, slope: slopeSuggestion }));
+  };
+
   return {
     hole,
     shots,
@@ -367,7 +545,16 @@ export function usePlay(args: {
     green,
     hazards,
     distToPin,
+    targetM,
+    playsLikeM,
+    targetPlaysLikeM,
+    pinOverridden,
     cone,
+    rec,
+    recComputing,
+    choice,
+    slopeSuggestion,
+    hasGrid: grid !== null,
     weather,
     wind,
     windOverride,
@@ -392,6 +579,8 @@ export function usePlay(args: {
       deleteShot,
       insertShot,
       aimAtFeature,
+      acceptOption,
+      acceptSlope,
     },
   };
 }

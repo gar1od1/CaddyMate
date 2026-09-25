@@ -1,10 +1,18 @@
-import { FLAT_STANCE } from '@caddymate/engine';
+import {
+  FLAT_STANCE,
+  sampleElevation,
+  type RecommendationSnapshot,
+  type StanceSlope,
+} from '@caddymate/engine';
 import type { Db } from './client.js';
+import { listClubs } from './clubs.js';
 import { getCourseBundle } from './courses.js';
+import { loadElevationGrid } from './elevation.js';
 import { check, must, num } from './errors.js';
 import { geographyToPoint, pointToEwkt } from './geography.js';
 import { applyTally, recomputeHoleShots, tallyHole } from './hole.js';
 import { surfaceAt } from './playgeo.js';
+import { getProfile } from './profiles.js';
 import { holeScoreFromRow, roundFromRow, upsertHoleScores } from './rounds.js';
 import type { HoleScore, Json, Row, Shot, ShotConditions, Tables, TargetRef } from './types.js';
 
@@ -41,17 +49,28 @@ export function shotFromRow(r: Row<'shots'>): Shot {
     conditions: (r.conditions as unknown as ShotConditions | null) ?? null,
     puttDistanceM: num(r.putt_distance_m),
     puttRemainingM: num(r.putt_remaining_m),
+    slopeSuggested: (r.slope_suggested as unknown as StanceSlope | null) ?? null,
+    recommendation: (r.recommendation as unknown as RecommendationSnapshot | null) ?? null,
     observedDistanceM: num(r.observed_distance_m),
     observedLateralM: num(r.observed_lateral_m),
+    neutralDistanceM: num(r.neutral_distance_m),
+    neutralLateralM: num(r.neutral_lateral_m),
+    conditionModelVersion: r.condition_model_version,
     resultSurface: r.result_surface,
     distanceToPinBeforeM: num(r.distance_to_pin_before_m),
     distanceToPinAfterM: num(r.distance_to_pin_after_m),
   };
 }
 
-/** Client-writable columns only; engine-owned columns are never sent. */
+/**
+ * Client-writable columns plus the outputs of the shared pure recompute
+ * (observed/neutral). SG and grades are never sent. `recommendation` is sent
+ * only when set: it is write-once (DB trigger), so an absent key leaves the
+ * stored snapshot alone.
+ */
 export function shotToRow(s: Shot): Tables['shots']['Insert'] {
   return {
+    ...(s.recommendation ? { recommendation: s.recommendation as unknown as Json } : {}),
     shot_id: s.id,
     user_id: s.userId,
     round_id: s.roundId,
@@ -81,8 +100,12 @@ export function shotToRow(s: Shot): Tables['shots']['Insert'] {
     conditions: s.conditions as unknown as Json,
     putt_distance_m: s.puttDistanceM,
     putt_remaining_m: s.puttRemainingM,
+    slope_suggested: s.slopeSuggested as unknown as Json,
     observed_distance_m: s.observedDistanceM,
     observed_lateral_m: s.observedLateralM,
+    neutral_distance_m: s.neutralDistanceM,
+    neutral_lateral_m: s.neutralLateralM,
+    condition_model_version: s.conditionModelVersion,
     result_surface: s.resultSurface,
     distance_to_pin_before_m: s.distanceToPinBeforeM,
     distance_to_pin_after_m: s.distanceToPinAfterM,
@@ -115,8 +138,13 @@ export function newShot(
     conditions: null,
     puttDistanceM: null,
     puttRemainingM: null,
+    slopeSuggested: null,
+    recommendation: null,
     observedDistanceM: null,
     observedLateralM: null,
+    neutralDistanceM: null,
+    neutralLateralM: null,
+    conditionModelVersion: null,
     resultSurface: null,
     distanceToPinBeforeM: null,
     distanceToPinAfterM: null,
@@ -184,8 +212,10 @@ export interface RecomputeResult {
 }
 
 /**
- * Server-side recompute of one hole: loads the round, the course geometry and
- * the hole's shots, re-chains and re-derives them (see `recomputeHoleShots`),
+ * Server-side recompute of one hole: loads the round, the course geometry,
+ * the player's clubs and handedness, the course elevation grid (best effort;
+ * GPS altitudes are used without one) and the hole's shots, re-chains and
+ * re-derives them including neutral results (see `recomputeHoleShots`),
  * writes the shots back and upserts `hole_scores`.
  */
 export async function recomputeHole(
@@ -201,10 +231,18 @@ export async function recomputeHole(
   const bundle = await getCourseBundle(db, round.courseId, round.courseVersion);
   const hole = bundle.holes.find((h) => h.number === holeNumber);
   const pin = round.pinOverrides[String(holeNumber)] ?? hole?.greenCentre ?? null;
+  const [clubs, profile, grid] = await Promise.all([
+    listClubs(db),
+    getProfile(db, round.userId),
+    loadElevationGrid(db, round.courseId, round.courseVersion).catch(() => null),
+  ]);
 
   const shots = recomputeHoleShots(await listShots(db, roundId, holeNumber), {
     pin,
     surfaceAt: (p) => surfaceAt(bundle.holes, p, holeNumber).lie,
+    clubFor: (id) => clubs.find((c) => c.id === id) ?? null,
+    handedness: profile?.handedness ?? 'R',
+    elevationAt: grid ? (p) => sampleElevation(grid, p) : null,
   });
   await upsertHoleShots(db, shots);
 

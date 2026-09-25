@@ -26,3 +26,11 @@ export const num = (v: unknown): number | null => {
   const n = typeof v === 'number' ? v : Number(v);
   return Number.isFinite(n) ? n : null;
 };
+
+/** Message of anything thrown or returned as an error (supabase-js errors are loosely typed). */
+export const errorMessage = (e: unknown): string =>
+  e instanceof Error
+    ? e.message
+    : typeof e === 'object' && e !== null && 'message' in e
+      ? String(e.message)
+      : String(e);

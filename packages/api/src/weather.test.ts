@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { fetchWeather, openMeteoUrl, parseOpenMeteo, windComponents } from './weather.js';
+import { FakeDb } from './testing/fakeDb.js';
+import {
+  fetchWeather,
+  fetchWeatherViaFunction,
+  getWeather,
+  openMeteoUrl,
+  parseOpenMeteo,
+  parseWeatherFunction,
+  windComponents,
+} from './weather.js';
 
 const payload = {
   current: {
@@ -56,5 +65,53 @@ describe('weather adapter', () => {
     expect(w.headMps).toBeCloseTo(0);
     expect(w.crossMps).toBeCloseTo(5);
     expect(windComponents(5, 90, 0).crossMps).toBeCloseTo(-5);
+  });
+});
+
+describe('weather via the Edge Function', () => {
+  const fnPayload = {
+    windSpeedMps: 4.1,
+    windFromDeg: 200,
+    tempC: 12,
+    pressureHpa: 1001,
+    observedAt: '2026-09-25T10:00:00Z',
+    source: 'current',
+    cached: true,
+  };
+
+  it('parses the function response', () => {
+    expect(parseWeatherFunction(fnPayload)).toMatchObject({
+      windSpeedMps: 4.1,
+      windFromDeg: 200,
+      gustMps: null,
+      tempC: 12,
+      pressureHpa: 1001,
+      source: 'edge:current',
+    });
+    expect(() => parseWeatherFunction({ tempC: 1 })).toThrow('malformed');
+  });
+
+  it('invokes GET weather?lat=&lng=', async () => {
+    const db = new FakeDb();
+    const calls: { name: string; opts: unknown }[] = [];
+    db.invoke = (name, opts) => {
+      calls.push({ name, opts });
+      return Promise.resolve({ data: fnPayload, error: null });
+    };
+    const w = await fetchWeatherViaFunction(db.asDb(), 53.4245, -6.9165);
+    expect(w.windSpeedMps).toBe(4.1);
+    expect(calls[0]!.name).toBe('weather?lat=53.42450&lng=-6.91650');
+    expect(calls[0]!.opts).toEqual({ method: 'GET' });
+  });
+
+  it('falls back to Open-Meteo when the function errors', async () => {
+    const db = new FakeDb();
+    db.invoke = () => Promise.resolve({ data: null, error: { message: 'relay error' } });
+    const w = await getWeather(db.asDb(), 1, 2, () =>
+      Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(payload) }),
+    );
+    expect(w.source).toBe('open-meteo');
+    db.invoke = () => Promise.resolve({ data: fnPayload, error: null });
+    expect((await getWeather(db.asDb(), 1, 2)).source).toBe('edge:current');
   });
 });

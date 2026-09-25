@@ -1,11 +1,19 @@
 /**
  * Domain types returned by the repository functions: camelCase, SI units,
- * geography already decoded to LatLng / Polygon. Engine-owned derived columns
- * (neutral_*, sg, grades, recommendation) are deliberately not part of `Shot`
- * so client upserts never overwrite them.
+ * geography already decoded to LatLng / Polygon. Of the engine-owned derived
+ * columns, `Shot` carries only those produced by the shared pure
+ * `recomputeHoleShots` (observed/neutral results via the engine's
+ * `normaliseShot`) and the write-once `recommendation` snapshot; SG and
+ * grades stay server-side so client upserts never overwrite them.
  */
 import type { Database, Json } from '@caddymate/db';
-import type { LatLng, Polygon, StanceSlope } from '@caddymate/engine';
+import type {
+  ClubPattern,
+  LatLng,
+  Polygon,
+  RecommendationSnapshot,
+  StanceSlope,
+} from '@caddymate/engine';
 
 type Enums = Database['public']['Enums'];
 export type Tables = Database['public']['Tables'];
@@ -200,10 +208,42 @@ export interface Shot {
   conditions: ShotConditions | null;
   puttDistanceM: number | null;
   puttRemainingM: number | null;
-  // Derived by recomputeHole (client-side for Phase 1).
+  /** Terrain suggestion shown on the card when the shot was entered (§7.5). */
+  slopeSuggested: StanceSlope | null;
+  /**
+   * What the player saw at Hit (§9.4). Write-once: the DB trigger rejects any
+   * change once set, so it is only ever sent when non-null.
+   */
+  recommendation: RecommendationSnapshot | null;
+  // Derived by recomputeHole (the same pure code runs on device and server).
   observedDistanceM: number | null;
   observedLateralM: number | null;
+  /** `normaliseShot` of the observed result (§7); null for putts / penalty records. */
+  neutralDistanceM: number | null;
+  neutralLateralM: number | null;
+  conditionModelVersion: number | null;
   resultSurface: LieKind | null;
   distanceToPinBeforeM: number | null;
   distanceToPinAfterM: number | null;
+}
+
+/** A `club_patterns` row (§8.4): the fitted neutral pattern for one club. */
+export interface StoredClubPattern {
+  clubId: string;
+  params: ClubPattern;
+  nEffective: number;
+  nRaw: number;
+  confidence: ClubPattern['confidence'];
+  fittedAt: string;
+  engineVersion: number;
+}
+
+/** A `club_condition_patterns` row (§8.5): empirical OBSERVED dispersion per bucket. */
+export interface StoredConditionPattern {
+  clubId: string;
+  bucketKey: string;
+  params: ClubPattern;
+  nEffective: number;
+  fittedAt: string;
+  engineVersion: number;
 }

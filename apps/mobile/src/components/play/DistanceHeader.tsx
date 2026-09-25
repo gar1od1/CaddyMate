@@ -19,7 +19,10 @@ interface Props {
   green: GreenDistances | null;
   pinM: number | null;
   pinOverridden: boolean;
+  /** Plays-like distance of the headline number (§17 Q4). */
+  playsLikeM: number | null;
   targetM: number | null;
+  targetPlaysLikeM: number | null;
   hazards: readonly HazardOnLine[];
   gpsAccuracyM: number | null;
   onPrev: () => void;
@@ -54,6 +57,9 @@ export function DistanceHeader(p: Props) {
         <View style={styles.centre}>
           <Text style={styles.big}>{yd(p.pinOverridden ? p.pinM : p.green?.centreM)}</Text>
           <Text style={styles.label}>{p.pinOverridden ? 'PIN' : 'CENTRE'}</Text>
+          {playsDiffers(p.playsLikeM, p.pinOverridden ? p.pinM : p.green?.centreM) ? (
+            <Text style={styles.plays}>PLAYS {yd(p.playsLikeM)}</Text>
+          ) : null}
         </View>
         <View style={styles.side}>
           <Text style={styles.small}>{yd(p.green?.frontM)}</Text>
@@ -62,7 +68,14 @@ export function DistanceHeader(p: Props) {
       </View>
       <View style={styles.extras}>
         {p.pinOverridden ? <Text style={styles.extra}>Centre {yd(p.green?.centreM)}</Text> : null}
-        {p.targetM !== null ? <Text style={styles.extra}>Target {yd(p.targetM)}</Text> : null}
+        {p.targetM !== null ? (
+          <Text style={styles.extra}>
+            Target {yd(p.targetM)}
+            {playsDiffers(p.targetPlaysLikeM, p.targetM)
+              ? ` · plays ${yd(p.targetPlaysLikeM)}`
+              : ''}
+          </Text>
+        ) : null}
         {p.hazards.slice(0, 3).map((h) => (
           <Text key={h.feature.id} style={[styles.extra, styles.hazard]}>
             {HAZARD_LABEL[h.feature.kind] ?? h.feature.kind} {yd(h.nearM)}–{yd(h.farM)}
@@ -72,6 +85,10 @@ export function DistanceHeader(p: Props) {
     </View>
   );
 }
+
+/** Show "plays like" only when it rounds to a different number of yards. */
+const playsDiffers = (plays: number | null, raw: number | null | undefined) =>
+  plays !== null && raw !== null && raw !== undefined && yd(plays) !== yd(raw);
 
 const shadow = {
   textShadowColor: 'rgba(0,0,0,0.85)',
@@ -108,6 +125,7 @@ const styles = StyleSheet.create({
   big: { ...type.distance, fontSize: 64, color: colors.text, ...shadow },
   small: { fontSize: 26, fontWeight: '800', color: colors.text, ...shadow },
   label: { fontSize: 11, fontWeight: '800', color: colors.text, letterSpacing: 1.2, ...shadow },
+  plays: { fontSize: 13, fontWeight: '800', color: colors.accent, letterSpacing: 1, ...shadow },
   extras: {
     flexDirection: 'row',
     flexWrap: 'wrap',

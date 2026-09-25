@@ -7,11 +7,16 @@
  */
 import {
   deleteShots,
+  fitAndStoreClubPattern,
   getRound as getRemoteRound,
+  listClubConditionPatterns,
+  listClubPatterns,
   listShots,
   upsertHoleScores,
   upsertHoleShots,
   upsertRound,
+  type Club,
+  type Shot,
 } from '@caddymate/api';
 import { AppState } from 'react-native';
 import { supabase } from '@/lib/supabase';
@@ -31,6 +36,10 @@ interface QueueRow {
   next_at: number;
   last_error: string | null;
 }
+
+/** kv keys of the cached pattern lists (read by the hooks). */
+export const PATTERNS_KEY = 'patterns';
+export const CONDITION_PATTERNS_KEY = 'conditionPatterns';
 
 const MAX_BACKOFF_MS = 60_000;
 const POLL_MS = 15_000;
@@ -68,6 +77,36 @@ async function push(item: QueueRow): Promise<void> {
   await upsertHoleShots(supabase, shots);
   if (score) await upsertHoleScores(supabase, [score]);
   await local.clearTombstones(tomb);
+  refitInBackground(item.round_id, shots);
+}
+
+/**
+ * Incremental refit on the device after the hole's shots are pushed
+ * (docs/SPEC.md §8.8): every club with a neutral result on the hole is
+ * refitted from all its shots and the cached pattern lists are refreshed.
+ * Best effort; the Edge Function refit after the round is authoritative.
+ */
+function refitInBackground(roundId: string, shots: readonly Shot[]): void {
+  const clubIds = [
+    ...new Set(shots.filter((s) => s.neutralDistanceM !== null && s.clubId).map((s) => s.clubId!)),
+  ];
+  const userId = shots[0]?.userId;
+  if (!clubIds.length || !userId) return;
+  void (async () => {
+    const [round, clubs] = await Promise.all([
+      local.getRound(roundId),
+      local.kvGet<Club[]>('clubs'),
+    ]);
+    for (const id of clubIds) {
+      const club = clubs?.find((c) => c.id === id);
+      await fitAndStoreClubPattern(supabase, userId, id, {
+        ...(club ? { club } : {}),
+        handicapIndex: round?.handicapIndexUsed ?? null,
+      });
+    }
+    await local.kvSet(PATTERNS_KEY, await listClubPatterns(supabase));
+    await local.kvSet(CONDITION_PATTERNS_KEY, await listClubConditionPatterns(supabase));
+  })().catch(() => undefined);
 }
 
 let running: Promise<void> | null = null;

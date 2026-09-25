@@ -22,6 +22,7 @@ import {
   destinationPoint,
   initialBearingDeg,
   type LatLng,
+  type RecommendationSnapshot,
   type StanceSlope,
 } from '@caddymate/engine';
 import type { Fix } from '@/lib/location';
@@ -42,6 +43,8 @@ export interface CardFields {
   targetRef: TargetRef | null;
   intendedShape: ShapeKind | null;
   conditions: ShotConditions | null;
+  /** Terrain slope suggestion shown on the card (§7.5), stored as `slope_suggested`. */
+  slopeSuggested: StanceSlope | null;
 }
 
 export interface WindOverride {
@@ -49,12 +52,18 @@ export interface WindOverride {
   fromDeg: number;
 }
 
-/** Conditions snapshot for a shot (SI). Head/cross are along the intended line. */
+/**
+ * Conditions snapshot for a shot (SI). Head/cross are along the intended
+ * line. Elevations come from the course grid (start, and the target until
+ * the shot finishes) or, without one, GPS altitude at Hit / Ball here;
+ * recomputeHole replaces them with grid heights whenever a grid is loaded.
+ */
 export function buildConditions(
   weather: WeatherSnapshot | null,
   override: WindOverride | null,
   bearingDeg: number | null,
   elevationStartM: number | null,
+  elevationEndM: number | null = null,
 ): ShotConditions | null {
   if (!weather && !override) return null;
   const speed = override?.speedMps ?? weather?.windSpeedMps ?? 0;
@@ -66,15 +75,15 @@ export function buildConditions(
     gust_ms: weather?.gustMps ?? null,
     temp_c: weather?.tempC ?? 20,
     pressure_hpa: weather?.pressureHpa ?? 1013.25,
-    // TODO(wave-2): elevations from the course terrain grid (packages/engine/src/terrain);
-    // GPS altitude is a stand-in for the start, the end is filled once terrain lands.
-    elevation_start_m: elevationStartM,
-    elevation_end_m: null,
+    elevation_start_m: elevationStartM === null ? null : round2(elevationStartM),
+    elevation_end_m: elevationEndM === null ? null : round2(elevationEndM),
     wind_head_ms: comps ? Math.round(comps.headMps * 100) / 100 : null,
     wind_cross_ms: comps ? Math.round(comps.crossMps * 100) / 100 : null,
     override: override !== null,
   };
 }
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export const ordered = (shots: readonly Shot[]) => orderShots(shots);
 
@@ -105,14 +114,24 @@ function create(base: ShotBase, shots: readonly Shot[], extra: Partial<Shot>): S
 
 const replace = (shots: readonly Shot[], s: Shot) => shots.map((x) => (x.id === s.id ? s : x));
 
-/** Hit: a new shot starting at the GPS fix with the card's fields. */
-export function hit(shots: readonly Shot[], base: ShotBase, card: CardFields, fix: Fix): Shot[] {
+/**
+ * Hit: a new shot starting at the GPS fix with the card's fields and the
+ * recommendation snapshot the player saw (§9.4; write-once from here on).
+ */
+export function hit(
+  shots: readonly Shot[],
+  base: ShotBase,
+  card: CardFields,
+  fix: Fix,
+  recommendation: RecommendationSnapshot | null = null,
+): Shot[] {
   return [
     ...shots,
     create(base, shots, {
       ...card,
       start: fix.point,
       startAccuracyM: fix.accuracyM,
+      recommendation,
     }),
   ];
 }
@@ -128,10 +147,14 @@ export function ballHere(
   card: CardFields,
   fix: Fix,
   tee: LatLng | null,
+  endElevationM: number | null = null,
 ): { shots: Shot[]; shotId: string } {
   const pending = pendingShot(shots);
   if (pending) {
     const s = { ...pending, end: fix.point, endAccuracyM: fix.accuracyM };
+    if (s.conditions && endElevationM !== null) {
+      s.conditions = { ...s.conditions, elevation_end_m: round2(endElevationM) };
+    }
     return { shots: replace(shots, s), shotId: s.id };
   }
   const s = create(base, shots, {

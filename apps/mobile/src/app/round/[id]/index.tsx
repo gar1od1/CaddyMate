@@ -1,6 +1,11 @@
 /** Play view (docs/SPEC.md §5.2–§5.6). */
-import type { Club, CourseBundle, Round, Shot } from '@caddymate/api';
-import { haversineDistanceM, initialBearingDeg, type LatLng } from '@caddymate/engine';
+import type { Club, CourseBundle, Round, Shot, StoredConditionPattern } from '@caddymate/api';
+import {
+  initialBearingDeg,
+  type ClubPattern,
+  type Handedness,
+  type LatLng,
+} from '@caddymate/engine';
 import { colors, radius, spacing, type } from '@caddymate/ui';
 import type { CameraStop } from '@maplibre/maplibre-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -12,12 +17,22 @@ import { HoleMap } from '@/components/play/HoleMap';
 import { PostShotBanner } from '@/components/play/PostShotBanner';
 import { ClubChips, PreShotCard } from '@/components/play/PreShotCard';
 import { PuttCard } from '@/components/play/PuttCard';
+import { RecommendationCard } from '@/components/play/RecommendationCard';
 import { ShotEditor } from '@/components/play/ShotEditor';
 import { ShotList } from '@/components/play/ShotList';
 import { Button } from '@/components/ui/Button';
 import { Sheet } from '@/components/ui/Sheet';
 import { setPin } from '@/data/actions';
-import { useClubs, useCourseBundle, useHoleScores, useRound, useRoundShots } from '@/data/hooks';
+import {
+  useClubPatterns,
+  useClubs,
+  useConditionPatterns,
+  useCourseBundle,
+  useHoleScores,
+  useProfile,
+  useRound,
+  useRoundShots,
+} from '@/data/hooks';
 import * as local from '@/data/local';
 import { hydrateRound } from '@/data/sync';
 import { usePlay } from '@/features/play/usePlay';
@@ -63,6 +78,14 @@ export default function PlayScreen() {
   const bundle = useCourseBundle(round.data?.courseId, round.data?.courseVersion);
   const clubs = useClubs();
   const shots = useRoundShots(id);
+  const userId = session?.user.id ?? round.data?.userId;
+  const profile = useProfile(userId);
+  const patterns = useClubPatterns();
+  const conditionPatterns = useConditionPatterns();
+  const patternMap = useMemo(
+    () => new Map<string, ClubPattern>((patterns.data ?? []).map((p) => [p.clubId, p.params])),
+    [patterns.data],
+  );
   const [hole, setHole] = useState<number | null>(null);
 
   useEffect(() => {
@@ -103,7 +126,11 @@ export default function PlayScreen() {
       shots={shots.data}
       hole={hole}
       setHole={setHole}
-      userId={session?.user.id ?? round.data.userId}
+      userId={userId ?? round.data.userId}
+      patterns={patternMap}
+      conditionPatterns={conditionPatterns.data ?? []}
+      handedness={profile.data?.handedness ?? 'R'}
+      handicapIndex={round.data.handicapIndexUsed ?? profile.data?.handicapIndexOfficial ?? null}
     />
   );
 }
@@ -116,6 +143,10 @@ function Play(props: {
   hole: number;
   setHole: (n: number) => void;
   userId: string;
+  patterns: ReadonlyMap<string, ClubPattern>;
+  conditionPatterns: readonly StoredConditionPattern[];
+  handedness: Handedness;
+  handicapIndex: number | null;
 }) {
   const { round, bundle, clubs, hole, setHole } = props;
   const play = usePlay({
@@ -125,6 +156,10 @@ function Play(props: {
     shots: props.shots,
     holeNumber: hole,
     userId: props.userId,
+    patterns: props.patterns,
+    conditionPatterns: props.conditionPatterns,
+    handedness: props.handedness,
+    handicapIndex: props.handicapIndex,
   });
   const scores = useHoleScores(round.id);
   const [lineUp, setLineUp] = useState(true);
@@ -161,7 +196,7 @@ function Play(props: {
   const putts = play.shots.filter((s) => s.lie === 'green');
   const lastPutt = putts.at(-1);
   const puttSuggestM = lastPutt && !lastPutt.holed ? lastPutt.puttRemainingM : play.distToPin;
-  const pinOverridden = !!round.pinOverrides[String(hole)];
+  const pinOverridden = play.pinOverridden;
 
   const menu = () =>
     Alert.alert(`Hole ${String(hole)}`, undefined, [
@@ -263,11 +298,19 @@ function Play(props: {
               {play.club?.name ?? 'Shot'} in the air — walk to your ball, then tap Ball here.
             </Text>
           ) : (
-            <ClubChips
-              clubs={clubs}
-              value={play.club?.id ?? null}
-              onChange={(clubId) => play.setCard((c) => ({ ...c, clubId }))}
-            />
+            <>
+              <RecommendationCard
+                rec={play.rec}
+                computing={play.recComputing}
+                choice={play.choice}
+                onAccept={play.actions.acceptOption}
+              />
+              <ClubChips
+                clubs={clubs}
+                value={play.club?.id ?? null}
+                onChange={(clubId) => play.setCard((c) => ({ ...c, clubId }))}
+              />
+            </>
           )}
           <View style={styles.actions}>
             {!play.pending ? (
@@ -319,7 +362,9 @@ function Play(props: {
         green={play.green}
         pinM={play.distToPin}
         pinOverridden={pinOverridden}
-        targetM={play.here && play.aim ? haversineDistanceM(play.here, play.aim.target) : null}
+        playsLikeM={play.isPuttMode ? null : play.playsLikeM}
+        targetM={play.isPuttMode ? null : play.targetM}
+        targetPlaysLikeM={play.isPuttMode ? null : play.targetPlaysLikeM}
         hazards={play.hazards}
         gpsAccuracyM={play.fix?.accuracyM ?? null}
         onPrev={() => goto(-1)}

@@ -34,7 +34,8 @@
     "eslint": "^9.39.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.49.0"
+    "typescript-eslint": "^8.49.0",
+    "vitest": "^5.0.2"
   },
   "scripts": {
     "start": "expo start",
@@ -43,7 +44,7 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "echo no tests yet"
+    "test": "vitest run"
   },
   "private": true
 }

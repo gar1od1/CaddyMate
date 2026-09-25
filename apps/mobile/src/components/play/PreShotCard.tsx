@@ -1,5 +1,6 @@
 /** The pre-shot card body (docs/SPEC.md §5.3): club, lie, slope, intended line, shape, wind. */
 import type { Club, LieKind, ShapeKind } from '@caddymate/api';
+import type { StanceSlope } from '@caddymate/engine';
 import { colors, spacing, type } from '@caddymate/ui';
 import { StyleSheet, Text, View } from 'react-native';
 import { Button } from '@/components/ui/Button';
@@ -73,7 +74,16 @@ export function PreShotCard({ play, clubs, onOpenAimPicker }: Props) {
       </Field>
       <Field label="Stance">
         <SlopeToggles value={card.slope} onChange={(slope) => setCard((c) => ({ ...c, slope }))} />
-        {/* TODO(wave-2): pre-fill from the terrain grid as "suggested" (SPEC §7.5). */}
+        {play.slopeSuggestion ? (
+          <View style={styles.aimRow}>
+            <Text style={styles.suggest}>Suggested: {slopeText(play.slopeSuggestion)}</Text>
+            {sameSlope(play.slopeSuggestion, card.slope) ? (
+              <Text style={styles.suggestOk}>✓</Text>
+            ) : (
+              <Chip label="Use" onPress={play.actions.acceptSlope} />
+            )}
+          </View>
+        ) : null}
       </Field>
       <Field label="Intended line">
         <View style={styles.aimRow}>
@@ -108,6 +118,26 @@ export function PreShotCard({ play, clubs, onOpenAimPicker }: Props) {
   );
 }
 
+const SLOPE_LABEL: Record<keyof StanceSlope, string> = {
+  uphill: 'uphill',
+  downhill: 'downhill',
+  ballAboveFeet: 'ball above feet',
+  ballBelowFeet: 'ball below feet',
+};
+
+function slopeText(s: StanceSlope): string {
+  const parts = (Object.keys(SLOPE_LABEL) as (keyof StanceSlope)[])
+    .filter((k) => s[k] !== 'none')
+    .map((k) => `${SLOPE_LABEL[k]} ${s[k]}`);
+  return parts.length ? parts.join(', ') : 'flat';
+}
+
+const sameSlope = (a: StanceSlope, b: StanceSlope) =>
+  a.uphill === b.uphill &&
+  a.downhill === b.downhill &&
+  a.ballAboveFeet === b.ballAboveFeet &&
+  a.ballBelowFeet === b.ballBelowFeet;
+
 function offsetText(rightM: number, longM: number): string {
   const parts: string[] = [];
   if (Math.abs(rightM) >= 0.5)
@@ -121,4 +151,6 @@ const styles = StyleSheet.create({
   aimRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   aimText: { ...type.caption, color: colors.text, flex: 1 },
   warn: { ...type.caption, color: colors.warning },
+  suggest: { ...type.caption, color: colors.textMuted, flex: 1 },
+  suggestOk: { ...type.caption, color: colors.accent, fontWeight: '800' },
 });

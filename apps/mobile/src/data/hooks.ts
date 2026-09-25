@@ -2,6 +2,8 @@
 import {
   getCourseBundle,
   getProfile,
+  listClubConditionPatterns,
+  listClubPatterns,
   listClubs,
   listRounds as listRemoteRounds,
   type Club,
@@ -10,12 +12,14 @@ import {
   type Profile,
   type Round,
   type Shot,
+  type StoredClubPattern,
+  type StoredConditionPattern,
 } from '@caddymate/api';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { subscribe } from './events';
 import * as local from './local';
-import { syncStatus, type SyncStatus } from './sync';
+import { CONDITION_PATTERNS_KEY, PATTERNS_KEY, syncStatus, type SyncStatus } from './sync';
 
 export interface QueryState<T> {
   data: T | undefined;
@@ -110,6 +114,16 @@ function useCached<T>(
 }
 
 export const useClubs = () => useCached<Club[]>('clubs', () => listClubs(supabase));
+
+/** Stored club patterns (§8.4); refreshed after refits (see sync.ts). */
+export const useClubPatterns = () =>
+  useCached<StoredClubPattern[]>(PATTERNS_KEY, () => listClubPatterns(supabase));
+
+/** Stored empirical condition-bucket patterns (§8.5). */
+export const useConditionPatterns = () =>
+  useCached<StoredConditionPattern[]>(CONDITION_PATTERNS_KEY, () =>
+    listClubConditionPatterns(supabase),
+  );
 
 export const useCourseBundle = (courseId: string | undefined, version: number | undefined) =>
   useCached<CourseBundle>(

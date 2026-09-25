@@ -1,11 +1,12 @@
 /**
- * Weather adapter. Phase 1 calls Open-Meteo directly (free, no key); the
- * interface is what the rest of the app depends on, so this can be swapped
- * for the weather Edge Function (keys server-side, cached in weather_cache)
- * without touching callers.
+ * Weather adapter. `getWeather` goes through the Supabase `weather` Edge
+ * Function (cached server-side in `weather_cache`, see
+ * supabase/functions/README.md) and falls back to calling Open-Meteo
+ * directly when the function errors (e.g. local dev without functions).
  */
-// TODO(wave-2): route through the Supabase `weather` Edge Function.
 import { degToRad } from '@caddymate/engine';
+import type { Db } from './client.js';
+import { errorMessage } from './errors.js';
 import type { WeatherSnapshot } from './types.js';
 
 type FetchLike = (
@@ -58,6 +59,66 @@ export async function fetchWeather(
   const res = await fetchImpl(openMeteoUrl(lat, lng));
   if (!res.ok) throw new Error(`Open-Meteo: HTTP ${String(res.status)}`);
   return parseOpenMeteo(await res.json());
+}
+
+/** Response of the `weather` Edge Function (`GET ?lat=&lng=[&at=]`). */
+interface WeatherFunctionResponse {
+  windSpeedMps?: number;
+  windFromDeg?: number;
+  gustMps?: number | null;
+  tempC?: number;
+  pressureHpa?: number;
+  observedAt?: string;
+  source?: string;
+}
+
+/** Map the `weather` Edge Function's JSON to a snapshot. */
+export function parseWeatherFunction(payload: unknown, now = new Date()): WeatherSnapshot {
+  const p = payload as WeatherFunctionResponse | null;
+  if (!p || typeof p.windSpeedMps !== 'number' || typeof p.windFromDeg !== 'number') {
+    throw new Error('weather function: malformed response');
+  }
+  return {
+    windSpeedMps: p.windSpeedMps,
+    windFromDeg: p.windFromDeg,
+    gustMps: typeof p.gustMps === 'number' ? p.gustMps : null,
+    tempC: p.tempC ?? 20,
+    pressureHpa: p.pressureHpa ?? 1013.25,
+    fetchedAt: now.toISOString(),
+    source: `edge:${p.source ?? 'current'}`,
+  };
+}
+
+/** Weather through the `weather` Edge Function; throws on any function error. */
+export async function fetchWeatherViaFunction(
+  db: Pick<Db, 'functions'>,
+  lat: number,
+  lng: number,
+  at?: Date,
+): Promise<WeatherSnapshot> {
+  const q = [`lat=${lat.toFixed(5)}`, `lng=${lng.toFixed(5)}`];
+  if (at) q.push(`at=${encodeURIComponent(at.toISOString())}`);
+  const res = await db.functions.invoke<unknown>(`weather?${q.join('&')}`, { method: 'GET' });
+  const error: unknown = res.error;
+  if (error) throw new Error(`weather function: ${errorMessage(error)}`);
+  return parseWeatherFunction(res.data);
+}
+
+/**
+ * Current weather at a point: the Edge Function first, Open-Meteo directly
+ * when it fails. Throws only when both fail.
+ */
+export async function getWeather(
+  db: Pick<Db, 'functions'>,
+  lat: number,
+  lng: number,
+  fetchImpl?: FetchLike,
+): Promise<WeatherSnapshot> {
+  try {
+    return await fetchWeatherViaFunction(db, lat, lng);
+  } catch {
+    return fetchWeather(lat, lng, fetchImpl);
+  }
 }
 
 export interface WindComponents {

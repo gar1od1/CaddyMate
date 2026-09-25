@@ -1,12 +1,11 @@
 /** Start a round (docs/SPEC.md §5.1): course, tee set, handicap, weather snapshot. */
 import {
-  courseHandicap,
   listPublishedCourses,
-  playingHandicap,
   uuidv4,
   type CourseSummary,
   type WeatherSnapshot,
 } from '@caddymate/api';
+import { courseHandicap, playingHandicap } from '@caddymate/engine';
 import { colors, radius, spacing, type } from '@caddymate/ui';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -75,7 +74,7 @@ export default function NewRound() {
 
   const tee = teeSets.find((t) => t.id === teeSetId);
   const coursePar = tee?.par ?? bundle.data?.holes.reduce((s, h) => s + h.par, 0) ?? 72;
-  // TODO(wave-2): use engine scoring
+  // Course handicap = round(HI × slope/113 + (CR − par)); playing = 95 % (§10.2).
   const ch =
     hi !== null && tee?.slopeRating && tee.courseRating
       ? courseHandicap(hi, tee.slopeRating, tee.courseRating, coursePar)

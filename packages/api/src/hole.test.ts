@@ -139,3 +139,72 @@ describe('tallyHole', () => {
     expect(holeStrokes(applyTally(null, 'r', 3, tallyHole([])))).toBe(0);
   });
 });
+
+describe('recomputeHoleShots — neutral results', () => {
+  const iron = { kind: 'iron' as const, loftDeg: 30 };
+  const calm = {
+    wind_speed_ms: 0,
+    wind_dir_deg: 0,
+    gust_ms: null,
+    temp_c: 20,
+    pressure_hpa: 1013.25,
+    elevation_start_m: null,
+    elevation_end_m: null,
+    wind_head_ms: 0,
+    wind_cross_ms: 0,
+    override: false,
+  };
+
+  it('leaves neutral fields alone without club context', () => {
+    const s = shot({ start: TEE, end: at(150), neutralDistanceM: 1, conditions: calm });
+    const [out] = recomputeHoleShots([s], { pin: PIN });
+    expect(out!.neutralDistanceM).toBe(1);
+  });
+
+  it('equals observed in calm, flat, fairway conditions and is stamped', () => {
+    const s = shot({ start: TEE, end: at(150), lie: 'fairway', conditions: calm });
+    const [out] = recomputeHoleShots([s], { pin: PIN, clubFor: () => iron });
+    expect(out!.neutralDistanceM).toBeCloseTo(out!.observedDistanceM!, 1);
+    expect(out!.neutralLateralM).toBeCloseTo(out!.observedLateralM!, 1);
+    expect(out!.conditionModelVersion).toBe(1);
+  });
+
+  it('adds distance back into a headwind and divides out the rough', () => {
+    // Playing north into a 6 m/s northerly.
+    const into = { ...calm, wind_speed_ms: 6, wind_dir_deg: 0 };
+    const a = shot({ start: TEE, end: at(150), lie: 'fairway', conditions: into });
+    const b = shot({ start: TEE, end: at(150), lie: 'rough', conditions: calm });
+    const [na] = recomputeHoleShots([a], { pin: PIN, clubFor: () => iron });
+    const [nb] = recomputeHoleShots([b], { pin: PIN, clubFor: () => iron });
+    expect(na!.neutralDistanceM!).toBeGreaterThan(155);
+    expect(nb!.neutralDistanceM!).toBeCloseTo(150 / 0.93, 0);
+  });
+
+  it('prefers grid elevations over GPS altitudes and writes them into conditions', () => {
+    const gps = { ...calm, elevation_start_m: 100, elevation_end_m: 130 };
+    const s = shot({ start: TEE, end: at(150), lie: 'fairway', conditions: gps });
+    // GPS says +30 m uphill → neutral much longer than observed.
+    const [viaGps] = recomputeHoleShots([s], { pin: PIN, clubFor: () => iron });
+    expect(viaGps!.neutralDistanceM!).toBeGreaterThan(170);
+    // A flat grid wins over the GPS altitudes.
+    const [viaGrid] = recomputeHoleShots([s], {
+      pin: PIN,
+      clubFor: () => iron,
+      elevationAt: () => 50,
+    });
+    expect(viaGrid!.neutralDistanceM).toBeCloseTo(viaGrid!.observedDistanceM!, 1);
+    expect(viaGrid!.conditions?.elevation_start_m).toBe(50);
+    expect(viaGrid!.conditions?.elevation_end_m).toBe(50);
+  });
+
+  it('gives putts, penalty records and putter shots no neutral result', () => {
+    const putt = shot({ start: at(370), end: at(379), lie: 'green', conditions: calm });
+    const pen = shot({ clubId: null, penalty: 'ob', start: at(379), end: at(379) });
+    const out = recomputeHoleShots([putt, pen], {
+      pin: PIN,
+      clubFor: () => ({ kind: 'putter' }),
+    });
+    expect(out.map((s) => s.neutralDistanceM)).toEqual([null, null]);
+    expect(out.map((s) => s.conditionModelVersion)).toEqual([null, null]);
+  });
+});

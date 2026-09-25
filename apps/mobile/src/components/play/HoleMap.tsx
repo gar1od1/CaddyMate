@@ -1,6 +1,8 @@
 /**
- * Play-view map: hole geometry as GeoJSON layers, the placeholder cone, the
- * intended line, this hole's shots and the pin.
+ * Play-view map: hole geometry as GeoJSON layers, the conditioned dispersion
+ * overlay of the selected club (cone or ellipses, dashed edge until the
+ * pattern is established, with its confidence label), the intended line,
+ * this hole's shots and the pin.
  */
 import {
   polygonToRings,
@@ -15,7 +17,7 @@ import { GeoJSONSource, Layer, Marker, type CameraStop } from '@maplibre/maplibr
 import { memo, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { CourseMap } from '@/components/CourseMap';
-import type { ConeShape } from '@/lib/cone';
+import type { DispersionOverlay } from '@/lib/cone';
 
 type FC = GeoJSON.FeatureCollection;
 
@@ -144,7 +146,7 @@ interface Props {
   bundle: CourseBundle;
   hole: number;
   camera: CameraStop;
-  cone: ConeShape | null;
+  cone: DispersionOverlay | null;
   /** Origin of the intended line (ball or GPS). */
   origin: LatLng | null;
   target: LatLng | null;
@@ -162,18 +164,18 @@ export function HoleMap(props: Props) {
   const overlay = useMemo<FC>(() => {
     const features: GeoJSON.Feature[] = [];
     if (cone) {
-      features.push(
-        {
+      for (const r of cone.rings) {
+        features.push({
           type: 'Feature',
-          properties: { k: 'cone' },
-          geometry: { type: 'Polygon', coordinates: [cone.outer] },
-        },
-        {
-          type: 'Feature',
-          properties: { k: 'core' },
-          geometry: { type: 'Polygon', coordinates: [cone.core] },
-        },
-      );
+          properties: { k: r.kind },
+          geometry: { type: 'Polygon', coordinates: [r.ring] },
+        });
+      }
+      features.push({
+        type: 'Feature',
+        properties: { k: cone.dashed ? 'edge-dashed' : 'edge' },
+        geometry: { type: 'LineString', coordinates: cone.edge },
+      });
     }
     if (origin && target) {
       features.push({
@@ -203,14 +205,32 @@ export function HoleMap(props: Props) {
         <Layer
           id="cone"
           type="fill"
-          filter={['==', ['get', 'k'], 'cone']}
+          filter={['in', ['get', 'k'], ['literal', ['cone', 'e80']]]}
           paint={{ 'fill-color': colors.cone }}
+        />
+        <Layer
+          id="ellipse-95"
+          type="fill"
+          filter={['==', ['get', 'k'], 'e95']}
+          paint={{ 'fill-color': colors.cone, 'fill-opacity': 0.45 }}
         />
         <Layer
           id="cone-core"
           type="fill"
-          filter={['==', ['get', 'k'], 'core']}
+          filter={['in', ['get', 'k'], ['literal', ['core', 'e1']]]}
           paint={{ 'fill-color': colors.coneCore }}
+        />
+        <Layer
+          id="cone-edge"
+          type="line"
+          filter={['==', ['get', 'k'], 'edge']}
+          paint={{ 'line-color': colors.coneCore, 'line-width': 1.5 }}
+        />
+        <Layer
+          id="cone-edge-dashed"
+          type="line"
+          filter={['==', ['get', 'k'], 'edge-dashed']}
+          paint={{ 'line-color': colors.coneCore, 'line-width': 1.5, 'line-dasharray': [2, 2] }}
         />
         <Layer
           id="aim"
@@ -248,6 +268,13 @@ export function HoleMap(props: Props) {
           </Marker>
         ) : null,
       )}
+      {cone ? (
+        <Marker id="cone-label" lngLat={toPosition(cone.centre)} anchor="top">
+          <View style={styles.coneLabel} pointerEvents="none">
+            <Text style={styles.coneLabelText}>{cone.label}</Text>
+          </View>
+        </Marker>
+      ) : null}
       {target ? (
         <Marker id="target" lngLat={toPosition(target)}>
           <View
@@ -285,6 +312,14 @@ const styles = StyleSheet.create({
   },
   dotSelected: { backgroundColor: colors.accent },
   dotText: { fontSize: 11, fontWeight: '800', color: '#000' },
+  coneLabel: {
+    marginTop: 14,
+    backgroundColor: 'rgba(11, 31, 20, 0.75)',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  coneLabelText: { fontSize: 11, fontWeight: '700', color: '#FFFFFF' },
   target: {
     width: 18,
     height: 18,

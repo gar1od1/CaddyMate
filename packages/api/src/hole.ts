@@ -5,7 +5,14 @@
  * scorecard numbers. Both the mobile local store and the server-side
  * `recomputeHole()` use these, so the two can never disagree.
  */
-import { haversineDistanceM, initialBearingDeg, toClubFrame, type LatLng } from '@caddymate/engine';
+import {
+  haversineDistanceM,
+  initialBearingDeg,
+  toClubFrame,
+  type Handedness,
+  type LatLng,
+} from '@caddymate/engine';
+import { neutralResult, resolveElevations, type ClubProfile } from './neutral.js';
 import type { HoleScore, LieKind, Shot } from './types.js';
 
 export interface RecomputeContext {
@@ -13,6 +20,15 @@ export interface RecomputeContext {
   pin: LatLng | null;
   /** Surface under a point (lie), for `result_surface`. */
   surfaceAt?: (p: LatLng) => LieKind | null;
+  /**
+   * Club kind/loft by id. When given, course shots get neutral results
+   * (`normaliseShot`, §7); without it the neutral fields are left as they are.
+   */
+  clubFor?: (clubId: string) => ClubProfile | null;
+  /** Player handedness for the stance-slope mirror. Default 'R'. */
+  handedness?: Handedness;
+  /** Course elevation grid sampler; its heights replace GPS altitudes when both ends are on it. */
+  elevationAt?: ((p: LatLng) => number | null) | null;
 }
 
 const samePoint = (a: LatLng | null, b: LatLng | null) =>
@@ -49,7 +65,9 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
  *     n+1 has a start (Ball here was skipped), shot n's end is back-filled;
  *  3. a holed shot ends at the pin;
  *  4. observed distance/lateral in the club frame, distance to pin before and
- *     after (putts use the entered feet when present), result surface.
+ *     after (putts use the entered feet when present), result surface;
+ *  5. with `ctx.clubFor`: start/end elevations from the grid (when on it)
+ *     and the neutral result stamped with the condition-model version.
  */
 export function recomputeHoleShots(shots: readonly Shot[], ctx: RecomputeContext): Shot[] {
   const out = orderShots(shots).map((s, i) => ({ ...s, seq: i + 1 }));
@@ -72,13 +90,30 @@ export function recomputeHoleShots(shots: readonly Shot[], ctx: RecomputeContext
 
     s.observedDistanceM = null;
     s.observedLateralM = null;
-    if (!penaltyRecord && s.start && s.end) {
-      const bearing = lineBearing(s, ctx.pin);
-      if (bearing !== null) {
-        const r = toClubFrame(s.start, bearing, s.end);
-        s.observedDistanceM = round2(r.alongM);
-        s.observedLateralM = round2(r.lateralM);
+    const bearing = penaltyRecord ? null : lineBearing(s, ctx.pin);
+    if (bearing !== null && s.start && s.end) {
+      const r = toClubFrame(s.start, bearing, s.end);
+      s.observedDistanceM = round2(r.alongM);
+      s.observedLateralM = round2(r.lateralM);
+    }
+
+    if (ctx.clubFor) {
+      const elev = resolveElevations(s, ctx.elevationAt);
+      if (elev.source === 'grid' && s.conditions) {
+        s.conditions = {
+          ...s.conditions,
+          elevation_start_m: round2(elev.startM),
+          elevation_end_m: round2(elev.endM),
+        };
       }
+      const neutral = neutralResult(s, bearing, {
+        club: s.clubId ? ctx.clubFor(s.clubId) : null,
+        handedness: ctx.handedness ?? 'R',
+        elevationAt: ctx.elevationAt ?? null,
+      });
+      s.neutralDistanceM = neutral?.alongM ?? null;
+      s.neutralLateralM = neutral?.lateralM ?? null;
+      s.conditionModelVersion = neutral?.conditionModelVersion ?? null;
     }
 
     s.distanceToPinBeforeM =

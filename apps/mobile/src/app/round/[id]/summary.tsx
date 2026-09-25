@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, Label } from '@/components/ui/Section';
 import { saveRound } from '@/data/actions';
 import { useCourseBundle, useHoleScores, useRound, useRoundShots } from '@/data/hooks';
-import { buildScorecard } from '@/features/scorecard/useScorecard';
+import { buildScorecard, finishTotals } from '@/features/scorecard/useScorecard';
 import { shortDate, toPar } from '@/lib/format';
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -41,11 +41,8 @@ export default function Summary() {
       ...r,
       status,
       finishedAt: new Date().toISOString(),
-      gross: t.holes ? t.strokes : null,
-      stableford: t.points,
-      // TODO(wave-2): use engine scoring (adjusted gross / differential / index).
-      adjustedGross: card.adjustedGross,
-      differential: card.differential,
+      // Engine scoring: Stableford, net-double-bogey adjusted gross, differential.
+      ...finishTotals(card),
     })
       .then(() => router.dismissTo('/'))
       .catch((e: unknown) => Alert.alert('Could not save', e instanceof Error ? e.message : ''))

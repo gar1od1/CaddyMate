@@ -8,18 +8,20 @@ import {
   holeStrokes,
   newRound,
   recomputeHoleShots,
-  stablefordPoints,
-  strokesReceived,
   surfaceAt,
   tallyHole,
   uuidv4,
+  type Club,
   type CourseBundle,
   type HoleScore,
+  type Profile,
   type Round,
   type Shot,
   type StartRoundInput,
 } from '@caddymate/api';
 import type { LatLng } from '@caddymate/engine';
+import { holeResult } from '@/features/scorecard/scorecard';
+import { cachedGrid, elevationSampler } from '@/lib/terrain';
 import * as local from './local';
 import { enqueue } from './sync';
 
@@ -37,20 +39,12 @@ export function strokeIndexFor(round: Round, bundle: CourseBundle, hole: number)
   return tee?.markers.find((m) => m.holeId === holeId)?.strokeIndex ?? null;
 }
 
-/** Points and net strokes for a hole score (placeholder scoring, see @caddymate/api/scoring). */
+/** Points and net strokes for a hole score (engine scoring, playing handicap). */
 function scoreHole(score: HoleScore, round: Round, bundle: CourseBundle): HoleScore {
   const hole = bundle.holes.find((h) => h.number === score.holeNumber);
-  const strokes = holeStrokes(score);
-  if (!hole || strokes === 0) return { ...score, points: null, netStrokes: null };
+  if (!hole) return { ...score, points: null, netStrokes: null };
   const si = strokeIndexFor(round, bundle, score.holeNumber);
-  const received =
-    round.playingHandicap !== null && si !== null ? strokesReceived(round.playingHandicap, si) : 0;
-  return {
-    ...score,
-    // TODO(wave-2): use engine scoring
-    points: stablefordPoints(hole.par, strokes, received),
-    netStrokes: strokes - received,
-  };
+  return { ...score, ...holeResult(hole.par, holeStrokes(score), round.playingHandicap, si) };
 }
 
 export async function createRound(input: StartRoundInput): Promise<Round> {
@@ -75,9 +69,18 @@ export async function saveHole(
   hole: number,
   shots: readonly Shot[],
 ): Promise<Shot[]> {
+  // Clubs and handedness from the local cache (written by useClubs / useProfile)
+  // so neutral results are derived on the device, offline, like on the server.
+  const [clubs, profile] = await Promise.all([
+    local.kvGet<Club[]>('clubs'),
+    local.kvGet<Profile | null>(`profile:${round.userId}`),
+  ]);
   const recomputed = recomputeHoleShots(shots, {
     pin: pinFor(round, bundle, hole),
     surfaceAt: (p) => surfaceAt(bundle.holes, p, hole).lie,
+    clubFor: (id) => clubs?.find((c) => c.id === id) ?? null,
+    handedness: profile?.handedness ?? 'R',
+    elevationAt: elevationSampler(cachedGrid(round.courseId, round.courseVersion)),
   });
   const prev = await local.getHoleScore(round.id, hole);
   const score = scoreHole(applyTally(prev, round.id, hole, tallyHole(recomputed)), round, bundle);

@@ -1,8 +1,12 @@
-/** Weather for the play view: one fetch per hole (cached in the kv store for 15 min). */
-import { fetchWeather, type WeatherSnapshot } from '@caddymate/api';
+/**
+ * Weather for the play view: one fetch per hole (cached in the kv store for
+ * 15 min) through the `weather` Edge Function, Open-Meteo directly as fallback.
+ */
+import { getWeather, type WeatherSnapshot } from '@caddymate/api';
 import type { LatLng } from '@caddymate/engine';
 import { useEffect, useState } from 'react';
 import * as local from '@/data/local';
+import { supabase } from '@/lib/supabase';
 
 const TTL_MS = 15 * 60_000;
 
@@ -10,7 +14,7 @@ export async function weatherAt(p: LatLng): Promise<WeatherSnapshot> {
   const key = `weather:${p.lat.toFixed(2)}:${p.lng.toFixed(2)}`;
   const cached = await local.kvGet<WeatherSnapshot>(key);
   if (cached && Date.now() - Date.parse(cached.fetchedAt) < TTL_MS) return cached;
-  const fresh = await fetchWeather(p.lat, p.lng);
+  const fresh = await getWeather(supabase, p.lat, p.lng);
   await local.kvSet(key, fresh);
   return fresh;
 }

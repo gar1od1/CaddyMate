@@ -24,6 +24,28 @@ export async function kvSet(key: string, value: unknown): Promise<void> {
   notifyChange();
 }
 
+// --- binary cache (elevation rasters) -------------------------------------
+
+export async function blobGet(key: string): Promise<Uint8Array | null> {
+  const db = await localDb();
+  const row = await db.getFirstAsync<{ data: Uint8Array }>(
+    'SELECT data FROM blobs WHERE key = ?',
+    key,
+  );
+  return row ? row.data : null;
+}
+
+/** Binary values don't notify hooks: callers keep their own decoded copy. */
+export async function blobSet(key: string, data: Uint8Array): Promise<void> {
+  const db = await localDb();
+  await db.runAsync(
+    'INSERT OR REPLACE INTO blobs (key, data, updated_at) VALUES (?, ?, ?)',
+    key,
+    data,
+    Date.now(),
+  );
+}
+
 // --- rounds ----------------------------------------------------------------
 
 export async function getRound(id: string): Promise<Round | null> {
