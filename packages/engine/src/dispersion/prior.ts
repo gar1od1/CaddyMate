@@ -1,0 +1,130 @@
+/**
+ * Cold-start prior (§8.3): 8 pseudo-shots centred on the player's stock
+ * distance (or a loft-table estimate) with handicap-band spreads.
+ */
+import type { ClubKind } from '../types/index.js';
+import { yardsToMetres } from '../units/index.js';
+import type { PatternPrior } from './types.js';
+
+/** n₀ — pseudo-observations carried by the prior. */
+export const PRIOR_PSEUDO_COUNT = 8;
+
+/** Reference driver total for the loft table (the 13-handicap persona, §2). */
+export const DEFAULT_DRIVER_DISTANCE_M = yardsToMetres(240);
+
+/**
+ * Total distance (yards) by loft for a 13-handicap who hits driver 240 yd,
+ * anchored on the persona's stated stock distances: driver 240, 7-iron (30°)
+ * 160, PW (45°) 120. Points between the anchors follow typical ~10–12 yd
+ * gaps per 4° of loft for irons and ~4 yd/° for woods and hybrids; wedges
+ * tail off faster (~3 yd/°). A different driver distance scales the whole
+ * table proportionally. Lofts outside the table clamp to its ends.
+ */
+export const LOFT_DISTANCE_TABLE_YD: readonly (readonly [loftDeg: number, totalYd: number])[] = [
+  [9, 240],
+  [15, 220],
+  [18, 210],
+  [21, 198],
+  [24, 185],
+  [27, 172],
+  [30, 160],
+  [34, 149],
+  [38, 138],
+  [45, 120],
+  [50, 107],
+  [54, 96],
+  [58, 84],
+  [62, 72],
+];
+
+/** Loft assumed when a club has none recorded. */
+export const DEFAULT_LOFT_DEG: Readonly<Record<Exclude<ClubKind, 'putter'>, number>> = {
+  driver: 9,
+  wood: 18,
+  hybrid: 21,
+  iron: 30,
+  wedge: 50,
+};
+
+export type HandicapBand = '0-5' | '6-10' | '11-15' | '16-20' | '21+';
+
+export interface BandSpreads {
+  /** σ_distance as a fraction of mean distance. */
+  distance: number;
+  /** σ_lateral as a fraction of mean distance — hybrids, irons, wedges. */
+  lateralIron: number;
+  /** σ_lateral as a fraction of mean distance — driver and woods. */
+  lateralWood: number;
+}
+
+/**
+ * Prior spreads by handicap band. `11-15` is the spec's 13-handicap default
+ * (5.5 % / 6.5 % / 8 %); the other bands are scaled around it.
+ */
+export const PRIOR_SPREADS: Readonly<Record<HandicapBand, BandSpreads>> = {
+  '0-5': { distance: 0.04, lateralIron: 0.045, lateralWood: 0.055 },
+  '6-10': { distance: 0.0475, lateralIron: 0.055, lateralWood: 0.0675 },
+  '11-15': { distance: 0.055, lateralIron: 0.065, lateralWood: 0.08 },
+  '16-20': { distance: 0.065, lateralIron: 0.075, lateralWood: 0.095 },
+  '21+': { distance: 0.075, lateralIron: 0.09, lateralWood: 0.11 },
+};
+
+/** Band for a handicap index (plus handicaps fall in `0-5`). */
+export function handicapBandFor(index: number): HandicapBand {
+  if (index <= 5) return '0-5';
+  if (index <= 10) return '6-10';
+  if (index <= 15) return '11-15';
+  if (index <= 20) return '16-20';
+  return '21+';
+}
+
+/** Table distance (yards, 240-yd driver) at `loftDeg`, linearly interpolated. */
+export function loftTableYards(loftDeg: number): number {
+  const t = LOFT_DISTANCE_TABLE_YD;
+  const first = t[0]!;
+  if (loftDeg <= first[0]) return first[1];
+  for (let i = 1; i < t.length; i++) {
+    const [l1, d1] = t[i]!;
+    if (loftDeg <= l1) {
+      const [l0, d0] = t[i - 1]!;
+      return d0 + ((loftDeg - l0) / (l1 - l0)) * (d1 - d0);
+    }
+  }
+  return t[t.length - 1]![1];
+}
+
+export interface PriorClub {
+  kind: ClubKind;
+  loftDeg?: number | null;
+  stockTotalM?: number | null;
+}
+
+/**
+ * Prior for a club. Mean distance is the player's `stockTotalM` when set,
+ * else the loft table scaled by `driverDistanceM` (a driver without a stock
+ * distance gets `driverDistanceM` itself). Lateral mean is 0 — bias is
+ * learned only from data. Putters are not modelled and throw.
+ */
+export function priorFor(
+  club: PriorClub,
+  driverDistanceM: number = DEFAULT_DRIVER_DISTANCE_M,
+  handicapBand: HandicapBand = '11-15',
+): PatternPrior {
+  if (club.kind === 'putter') throw new RangeError('putters have no dispersion pattern');
+  let mean: number;
+  if (club.stockTotalM != null && club.stockTotalM > 0) {
+    mean = club.stockTotalM;
+  } else if (club.kind === 'driver') {
+    mean = driverDistanceM;
+  } else {
+    const loft = club.loftDeg ?? DEFAULT_LOFT_DEG[club.kind];
+    mean = driverDistanceM * (loftTableYards(loft) / 240);
+  }
+  const spreads = PRIOR_SPREADS[handicapBand];
+  const woodLike = club.kind === 'driver' || club.kind === 'wood';
+  return {
+    n0: PRIOR_PSEUDO_COUNT,
+    distance: { mean, sd: spreads.distance * mean },
+    lateral: { mean: 0, sd: (woodLike ? spreads.lateralWood : spreads.lateralIron) * mean },
+  };
+}
