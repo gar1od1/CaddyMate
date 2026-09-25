@@ -1,6 +1,6 @@
 /**
- * Generated Supabase types land in ./database.types.ts via `pnpm db:types`
- * (requires the Supabase CLI and a running local stack). Until then the
- * clients use untyped queries; do not hand-edit the generated file.
+ * Generated Supabase types (`pnpm db:types`, run against the local migrated
+ * database — see scripts/local-db.sh). Do not hand-edit database.types.ts.
  */
+export type { Database, Json } from './database.types.js';
 export { SCHEMA_VERSION } from './version.js';
