@@ -1,0 +1,258 @@
+/**
+ * Condition model (docs/SPEC.md §7): predict how wind, elevation, air density,
+ * lie and stance slope move a shot in the club frame, and convert between
+ * observed and neutral results with those predictions.
+ *
+ * The deterministic part is an affine map of the neutral result:
+ *
+ *   along_c   = along_n · F + E
+ *   lateral_c = lateral_n + along_n · L
+ *
+ * with F = lie factor · (1 + slope) · (1 + wind + density), E = elevation
+ * change and L = crosswind drift + slope bias, both per metre of shot. That
+ * makes {@link normaliseShot} an exact inverse of {@link applyConditions}.
+ */
+import { degToRad } from '../units/index.js';
+import type {
+  ClubKind,
+  Conditions,
+  FrameResult,
+  Handedness,
+  Lie,
+  StanceSlope,
+} from '../types/index.js';
+import {
+  DEFAULT_CONDITION_MODEL,
+  REFERENCE_PRESSURE_HPA,
+  REFERENCE_TEMP_C,
+  type ConditionModelV1,
+  type SlopeToggle,
+} from './model.js';
+
+export * from './model.js';
+
+const KELVIN = 273.15;
+
+/** Everything about a shot the condition model needs except its length. */
+export interface ConditionContext {
+  club: { kind: ClubKind; loftDeg?: number };
+  /** Bearing of the intended line, degrees true. */
+  lineBearingDeg: number;
+  conditions: Conditions;
+  lie: Lie;
+  slope: StanceSlope;
+  handedness: Handedness;
+  /** Coefficients to use; defaults to {@link DEFAULT_CONDITION_MODEL}. */
+  model?: ConditionModelV1;
+}
+
+export interface PredictEffectsInput extends ConditionContext {
+  /** Neutral (flat, calm, standard-air, fairway) distance of the shot, metres. */
+  nominalDistanceM: number;
+}
+
+export interface EffectDelta {
+  alongM: number;
+  lateralM: number;
+}
+
+export interface Effects {
+  deltaAlongM: number;
+  deltaLateralM: number;
+  extraSigmaAlongM: number;
+  extraSigmaLateralM: number;
+  flyerProbability: number;
+  playsLikeDistanceM: number;
+  /** Per-cause deltas; they sum exactly to `deltaAlongM` / `deltaLateralM`. */
+  breakdown: {
+    wind: EffectDelta;
+    elevation: EffectDelta;
+    density: EffectDelta;
+    lie: EffectDelta;
+    slope: EffectDelta;
+  };
+}
+
+/**
+ * Split a wind into components relative to the intended line.
+ * `windFromDeg` is meteorological (the direction the wind blows FROM).
+ * `headMps` > 0 blows into the player's face; `crossMps` > 0 blows from the
+ * player's left and pushes the ball right. Handedness does not matter.
+ */
+export function windComponents(
+  windSpeedMps: number,
+  windFromDeg: number,
+  lineBearingDeg: number,
+): { headMps: number; crossMps: number } {
+  // Angle of the wind's source relative to the line of play.
+  const rel = degToRad(windFromDeg - lineBearingDeg);
+  return {
+    headMps: windSpeedMps * Math.cos(rel),
+    crossMps: -windSpeedMps * Math.sin(rel),
+  };
+}
+
+/** Air density relative to 20 °C / 1013.25 hPa, ideal gas (humidity ignored). */
+export function airDensityRatio(tempC: number, pressureHpa: number): number {
+  return (pressureHpa / REFERENCE_PRESSURE_HPA) * ((REFERENCE_TEMP_C + KELVIN) / (tempC + KELVIN));
+}
+
+/** Crosswind hang factor: loft curve when the loft is known, else the kind default. */
+function hangFactor(model: ConditionModelV1, club: ConditionContext['club']): number {
+  const table = model.wind.hangByLoft;
+  const loft = club.loftDeg;
+  if (loft === undefined || !Number.isFinite(loft) || table.length === 0) {
+    return model.wind.hang[club.kind];
+  }
+  const first = table[0]!;
+  if (loft <= first[0]) return first[1];
+  for (let i = 1; i < table.length; i++) {
+    const [x1, y1] = table[i]!;
+    if (loft <= x1) {
+      const [x0, y0] = table[i - 1]!;
+      return y0 + ((y1 - y0) * (loft - x0)) / (x1 - x0);
+    }
+  }
+  return table[table.length - 1]![1];
+}
+
+const SLOPE_TOGGLES: readonly SlopeToggle[] = [
+  'uphill',
+  'downhill',
+  'ballAboveFeet',
+  'ballBelowFeet',
+];
+
+/** Terms of the affine map described in the module comment. */
+interface Terms {
+  lieFactor: number;
+  slopeFrac: number;
+  windFrac: number;
+  densityFrac: number;
+  /** Clamped `1 + windFrac + densityFrac`. */
+  airMultiplier: number;
+  elevationM: number;
+  windLateralPerM: number;
+  slopeLateralPerM: number;
+}
+
+function terms(ctx: ConditionContext): Terms {
+  const model = ctx.model ?? DEFAULT_CONDITION_MODEL;
+  const { conditions: c, club } = ctx;
+  const { headMps, crossMps } = windComponents(c.windSpeedMps, c.windFromDeg, ctx.lineBearingDeg);
+
+  const windFrac =
+    headMps > 0 ? -model.wind.headPerMps * headMps : -model.wind.tailPerMps * headMps;
+  const densityFrac = model.density.k * (1 - airDensityRatio(c.tempC, c.pressureHpa));
+
+  let slopeFrac = 0;
+  let slopePer100 = 0;
+  for (const toggle of SLOPE_TOGGLES) {
+    const strength = ctx.slope[toggle];
+    if (strength === 'none') continue;
+    const e = model.slope[toggle][strength];
+    slopeFrac += e.distanceFrac;
+    slopePer100 += e.lateralPer100M;
+  }
+  const mirror = ctx.handedness === 'L' ? -1 : 1;
+
+  return {
+    lieFactor: model.lie[ctx.lie].distanceFactor,
+    slopeFrac,
+    windFrac,
+    densityFrac,
+    airMultiplier: Math.max(model.minAirMultiplier, 1 + windFrac + densityFrac),
+    elevationM: -model.elevation.perMetre[club.kind] * (c.elevationEndM - c.elevationStartM),
+    windLateralPerM: model.wind.crossPerMps[club.kind] * crossMps * hangFactor(model, club),
+    slopeLateralPerM: (mirror * slopePer100) / 100,
+  };
+}
+
+const alongMultiplier = (t: Terms): number => t.lieFactor * (1 + t.slopeFrac) * t.airMultiplier;
+
+/** Deterministic map neutral → conditioned. Extra σ is not applied here. */
+export function applyConditions(neutral: FrameResult, ctx: ConditionContext): FrameResult {
+  const t = terms(ctx);
+  return {
+    alongM: neutral.alongM * alongMultiplier(t) + t.elevationM,
+    lateralM: neutral.lateralM + neutral.alongM * (t.windLateralPerM + t.slopeLateralPerM),
+  };
+}
+
+/**
+ * Inverse of {@link applyConditions}: strip the predicted condition effects
+ * from an observed club-frame result. Extra σ from the lie is deliberately
+ * not removed (§7.4).
+ */
+export function normaliseShot(observed: FrameResult, ctx: ConditionContext): FrameResult {
+  const t = terms(ctx);
+  const alongM = (observed.alongM - t.elevationM) / alongMultiplier(t);
+  return {
+    alongM,
+    lateralM: observed.lateralM - alongM * (t.windLateralPerM + t.slopeLateralPerM),
+  };
+}
+
+/**
+ * "Plays like" distance (§17 Q4): the neutral distance a shot must have to
+ * cover `distanceToTargetM` here, counting elevation, head/tail wind and air
+ * density only — lie and slope are shown separately.
+ */
+export function playsLikeDistance(distanceToTargetM: number, ctx: ConditionContext): number {
+  const t = terms(ctx);
+  return (distanceToTargetM - t.elevationM) / t.airMultiplier;
+}
+
+/**
+ * Predicted effect of the conditions on a shot of `nominalDistanceM`.
+ * Effects are applied in the order lie → slope → air (wind, density) →
+ * elevation, and each breakdown entry is that step's increment, so the
+ * entries sum to the totals.
+ */
+export function predictEffects(input: PredictEffectsInput): Effects {
+  const model = input.model ?? DEFAULT_CONDITION_MODEL;
+  const t = terms(input);
+  const d = input.nominalDistanceM;
+
+  const afterLie = d * t.lieFactor;
+  const afterSlope = afterLie * (1 + t.slopeFrac);
+  // Split the (possibly clamped) air step between wind and density pro rata.
+  const airStep = afterSlope * (t.airMultiplier - 1);
+  const rawAir = t.windFrac + t.densityFrac;
+  const windShare = rawAir === 0 ? 0 : t.windFrac / rawAir;
+
+  const breakdown = {
+    lie: { alongM: afterLie - d, lateralM: 0 },
+    slope: { alongM: afterSlope - afterLie, lateralM: d * t.slopeLateralPerM },
+    wind: { alongM: airStep * windShare, lateralM: d * t.windLateralPerM },
+    density: { alongM: airStep * (1 - windShare), lateralM: 0 },
+    elevation: { alongM: t.elevationM, lateralM: 0 },
+  };
+  const lie = model.lie[input.lie];
+
+  return {
+    deltaAlongM: afterSlope * t.airMultiplier + t.elevationM - d,
+    deltaLateralM: breakdown.slope.lateralM + breakdown.wind.lateralM,
+    extraSigmaAlongM: lie.extraSigmaDistanceM,
+    extraSigmaLateralM: lie.extraSigmaLateralM,
+    flyerProbability: lie.flyerProbability,
+    playsLikeDistanceM: playsLikeDistance(d, input),
+    breakdown,
+  };
+}
+
+/** Wind bin label per §8.5: (−∞,−4], (−4,−1], (−1,1], (1,4], (4,∞) m/s. */
+function windBin(mps: number): string {
+  if (mps <= -4) return '..-4';
+  if (mps <= -1) return '-4..-1';
+  if (mps <= 1) return '-1..1';
+  if (mps <= 4) return '+1..4';
+  if (mps > 4) return '+4..';
+  // NaN (missing wind) is treated as calm so the key stays total.
+  return '-1..1';
+}
+
+/** Condition-bucket key (§8.5), e.g. `fairway|h:+1..4|c:-4..-1`. */
+export function conditionBucketKey(lie: Lie, headMps: number, crossMps: number): string {
+  return `${lie}|h:${windBin(headMps)}|c:${windBin(crossMps)}`;
+}
