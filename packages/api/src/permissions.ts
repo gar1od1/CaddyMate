@@ -298,20 +298,8 @@ export function requirePermission(grants: Grants | null | undefined, key: Permis
 
 /** One row of the `my_permissions` view (role, plus one effective key or null). */
 export interface MyPermissionRow {
-  role: AppRole;
+  role: AppRole | null;
   permission_key: string | null;
-}
-
-// `my_permissions` is new in 20260928000000; until database.types.ts is
-// regenerated the typed client does not know it, so read it through this
-// narrow structural view of the client.
-interface MyPermissionsSource {
-  from(view: 'my_permissions'): {
-    select(columns: 'role, permission_key'): PromiseLike<{
-      data: MyPermissionRow[] | null;
-      error: { message: string } | null;
-    }>;
-  };
 }
 
 /** Grants from `my_permissions` rows (the page cascade is already applied by the view). */
@@ -329,8 +317,7 @@ export function grantsFromRows(rows: readonly MyPermissionRow[]): Grants {
  * callers that must not lock anyone out fall back to `grantsForRole('player')`.
  */
 export async function loadGrants(db: Db): Promise<Grants> {
-  const source = db as unknown as MyPermissionsSource;
-  const { data, error } = await source.from('my_permissions').select('role, permission_key');
+  const { data, error } = await db.from('my_permissions').select('role, permission_key');
   if (error) throw new Error(`loadGrants: ${error.message}`);
   return grantsFromRows(data ?? []);
 }

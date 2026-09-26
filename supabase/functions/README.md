@@ -23,7 +23,8 @@ Jobs (SPEC §8.8, §12):
 | `finalise-round` | `POST { roundId }`                                                                             | `{ roundId, gross, status, holes: [{ holeNumber, strokes, strokesLogged, putts, penalties, holed }], shotsUpdated, clubsRefit }` |
 | `import-sim`     | `POST { source: 'gspro' \| 'square', csv, clubAliases?: { name: clubId }, utcOffsetMinutes? }` | `{ sessionId, duplicate, format, detected, inserted, skipped, skippedDetail, unmappedClubs, clubsRefit }`                        |
 
-Errors are `{ error: { code, message } }` with 400 / 401 / 404 / 405 / 409 / 413
+Errors are `{ error: { code, message } }` with 400 / 401 / 403 (`forbidden`: the caller
+lacks the permission key, docs/standards/permissions.md) / 404 / 405 / 409 / 413
 / 422 (`at` beyond the 16-day forecast; unparseable CSV) / 502 / 504 (upstream
 timeout).
 

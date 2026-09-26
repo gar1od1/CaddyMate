@@ -452,6 +452,41 @@ export type Database = {
           },
         ];
       };
+      permission: {
+        Row: {
+          description: string;
+          module_key: string | null;
+          page_key: string;
+          page_view_key: string | null;
+          permission_key: string;
+          verb: Database['public']['Enums']['permission_verb'];
+        };
+        Insert: {
+          description: string;
+          module_key?: never;
+          page_key: string;
+          page_view_key?: never;
+          permission_key: string;
+          verb: Database['public']['Enums']['permission_verb'];
+        };
+        Update: {
+          description?: string;
+          module_key?: never;
+          page_key?: string;
+          page_view_key?: never;
+          permission_key?: string;
+          verb?: Database['public']['Enums']['permission_verb'];
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'permission_page_view_key_fkey';
+            columns: ['page_view_key'];
+            isOneToOne: false;
+            referencedRelation: 'permission';
+            referencedColumns: ['permission_key'];
+          },
+        ];
+      };
       profiles: {
         Row: {
           condition_overrides: NonNullable<Json>;
@@ -463,6 +498,7 @@ export type Database = {
           home_course_id: string | null;
           plan: Database['public']['Enums']['plan'];
           recency_half_life_days: number;
+          role: Database['public']['Enums']['app_role'];
           units: string;
           updated_at: string;
           user_id: string;
@@ -477,6 +513,7 @@ export type Database = {
           home_course_id?: string | null;
           plan?: Database['public']['Enums']['plan'];
           recency_half_life_days?: number;
+          role?: Database['public']['Enums']['app_role'];
           units?: string;
           updated_at?: string;
           user_id: string;
@@ -491,6 +528,7 @@ export type Database = {
           home_course_id?: string | null;
           plan?: Database['public']['Enums']['plan'];
           recency_half_life_days?: number;
+          role?: Database['public']['Enums']['app_role'];
           units?: string;
           updated_at?: string;
           user_id?: string;
@@ -502,6 +540,29 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: 'courses';
             referencedColumns: ['course_id'];
+          },
+        ];
+      };
+      role_permission: {
+        Row: {
+          permission_key: string;
+          role: Database['public']['Enums']['app_role'];
+        };
+        Insert: {
+          permission_key: string;
+          role: Database['public']['Enums']['app_role'];
+        };
+        Update: {
+          permission_key?: string;
+          role?: Database['public']['Enums']['app_role'];
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'role_permission_permission_key_fkey';
+            columns: ['permission_key'];
+            isOneToOne: false;
+            referencedRelation: 'permission';
+            referencedColumns: ['permission_key'];
           },
         ];
       };
@@ -968,7 +1029,36 @@ export type Database = {
       };
     };
     Views: {
-      [_ in never]: never;
+      my_permissions: {
+        Row: {
+          permission_key: string | null;
+          role: Database['public']['Enums']['app_role'] | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'role_permission_permission_key_fkey';
+            columns: ['permission_key'];
+            isOneToOne: false;
+            referencedRelation: 'permission';
+            referencedColumns: ['permission_key'];
+          },
+        ];
+      };
+      role_effective_permission: {
+        Row: {
+          permission_key: string | null;
+          role: Database['public']['Enums']['app_role'] | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'role_permission_permission_key_fkey';
+            columns: ['permission_key'];
+            isOneToOne: false;
+            referencedRelation: 'permission';
+            referencedColumns: ['permission_key'];
+          },
+        ];
+      };
     };
     Functions: {
       can_read_course: { Args: { cid: string }; Returns: boolean };
@@ -997,8 +1087,10 @@ export type Database = {
       course_get: { Args: { p_course_id: string; p_version?: number }; Returns: Json };
       course_publish: { Args: { p_change_reason?: string; p_course_id: string }; Returns: number };
       course_save_draft: { Args: { p_course_id: string; p_doc: Json }; Returns: undefined };
+      has_permission: { Args: { p_key: string }; Returns: boolean };
     };
     Enums: {
+      app_role: 'player' | 'curator' | 'admin';
       club_kind: 'driver' | 'wood' | 'hybrid' | 'iron' | 'wedge' | 'putter';
       course_source: 'osm' | 'editor' | 'igolf';
       course_status: 'draft' | 'published';
@@ -1031,6 +1123,7 @@ export type Database = {
         | 'green';
       pattern_confidence: 'seeded' | 'forming' | 'established';
       penalty: 'none' | 'lateral' | 'yellow' | 'ob' | 'unplayable';
+      permission_verb: 'view' | 'write' | 'refit' | 'publish';
       plan: 'free' | 'pro';
       round_status: 'live' | 'complete' | 'abandoned';
       sg_category: 'ott' | 'app' | 'arg' | 'putt';
@@ -1150,6 +1243,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ['player', 'curator', 'admin'],
       club_kind: ['driver', 'wood', 'hybrid', 'iron', 'wedge', 'putter'],
       course_source: ['osm', 'editor', 'igolf'],
       course_status: ['draft', 'published'],
@@ -1184,6 +1278,7 @@ export const Constants = {
       ],
       pattern_confidence: ['seeded', 'forming', 'established'],
       penalty: ['none', 'lateral', 'yellow', 'ob', 'unplayable'],
+      permission_verb: ['view', 'write', 'refit', 'publish'],
       plan: ['free', 'pro'],
       round_status: ['live', 'complete', 'abandoned'],
       sg_category: ['ott', 'app', 'arg', 'putt'],

@@ -13,6 +13,7 @@ The SPEC is never edited to reflect a decision; the ADR is the record, and code 
 | [003](003-dispersion-fit-choices.md)            | Dispersion engine interpretation choices | Accepted | `n_effective` excludes prior pseudo-shots; two-piece lateral normal; cone/ellipse construction; prior spread and loft anchors (`DISPERSION_ENGINE_VERSION = 1`).             |
 | [004](004-strategy-search-choices.md)           | Strategy search and classification       | Accepted | One layup station per club, top 5 = best aim per club, landing-classification precedence, coarse→refine lateral grid (`STRATEGY_ENGINE_VERSION = 1`).                        |
 | [005](005-on-device-normalisation-and-refit.md) | On-device normalisation and refit        | Accepted | Client writes neutral values and pattern rows with the same pure engine code; server `refit` stays authoritative; handicap basis for net/Stableford. Amends SPEC §6.4, §8.8. |
+| [006](006-roles-and-curator.md)                 | Roles: player, curator, admin            | Accepted | One role per user; `curator` = player + `courses.publish`; `admin` holds every key; roles only widen ownership RLS; no tenants yet.                                          |
 
 ## When an ADR is required
 

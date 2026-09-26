@@ -169,10 +169,15 @@ and plans arrive (§8) this is where "is this org / plan entitled to the product
 Load grants once (`loadGrants(db)`) and keep a nav row only when `canSeeNavItem(pageKey,
 grants)`. With the page cascade a visible sub-page implies a visible parent.
 
-- **Web:** the shell composes `NAV_TREE` through its seam
-  `apps/web/src/lib/nav/access.ts#canSeeNavItem(key)`; its body becomes
-  `canSeeNavItem(key, grants)` from `@caddymate/api` with the request's grants.
-- **Mobile:** the dashboard tiles / links are filtered the same way.
+- **Web:** the root layout loads the request's grants (`lib/auth/grants.ts#getGrants`,
+  `React.cache`d) and hands them to `AppShell`, which composes `NAV_TREE` through
+  `apps/web/src/lib/nav/access.ts#canSeeNavItem(key, grants)` (the api helper). Nav keys are the
+  page keys (`dashboard`, `rounds`, `rounds.review`, `rounds.trends`, `clubs`, `courses`,
+  `import`); `tree.test.ts` fails if an unlocked row's key is not a catalogue page or a route
+  resolves differently from `pageKeyForPath`. Locked ("Soon") rows open nothing and are shown to
+  everyone.
+- **Mobile:** the dashboard tiles / links are filtered the same way (not yet: every tile is a
+  page every role holds today).
 
 ### Gate 3: Page guard
 
@@ -184,11 +189,17 @@ In order:
 3. `if (!canOpenPath(path, surface, grants))` → redirect to
    `firstAccessiblePath(grants, surface) ?? '/sign-in'`.
 
-- **Web:** `proxy.ts` stamps the pathname (e.g. `x-pathname`); the shell layout (a Server
-  Component) runs the guard, deduped with `React.cache`. `redirect()` is called **outside** any
-  `try/catch` (Next implements it by throwing).
-- **Mobile:** `<Gate>` loads grants with the session (AuthProvider) and, from
-  `useSegments()`, builds the path and renders `<Redirect>` when `canOpenPath` is false.
+- **Web:** `proxy.ts` stamps `x-pathname`; the root layout (a Server Component) runs
+  `decidePage(path, grants)` (`lib/nav/access.ts`, over `canOpenPath` / `firstAccessiblePath`)
+  and calls `redirect()` **outside** any `try/catch` (Next implements it by throwing) to
+  `<first page>?denied=<page>`, where `DeniedNotice` explains it. Layouts do not re-render on
+  client navigation, so `AppShell` repeats the same decision on every pathname with the same
+  grants (and `router.refresh()`es once when it holds signed-out grants after a client-side
+  sign-in).
+- **Mobile:** `<Gate>` in `apps/mobile/src/app/_layout.tsx` loads grants after sign-in
+  (`loadGrants(supabase)`, starting from and falling back to player grants so the app opens
+  offline), builds the path from `useSegments()` and renders `<Redirect href="/">` with an inline
+  banner when `canOpenPath` is false.
 - **Fail-safe:** public and unresolved paths fall through (`canOpenPath` → `true`). The route
   drift test (§6.4) is what keeps "unresolved" empty.
 
@@ -267,7 +278,8 @@ Denied actions return an error (`403 { error: { code: 'forbidden' } }` from func
 `PermissionDeniedError` in server code, `42501` from SQL); where a user could plausibly reach
 the control, the UI hides or disables it with a short reason (`can(grants, key)`, or
 `course_get(...).course.can_write` for the editor). Denied pages redirect to the first page the
-user can see — no generic "access denied" dead end.
+user can see, with a note saying why (`?denied=<page>` on web, a banner on mobile). Only a user
+who can see no page at all gets the in-place `NoAccess` explanation.
 
 ### 6.7 Roles are not self-service
 
@@ -371,18 +383,20 @@ isolates users completely. When clubs, coaches or teams arrive:
 
 ## 10. Compliance snapshot (2026-09-26)
 
-| Module / area                                                       | Keys                                                                      | Gate 2 nav                          | Gate 3 guard           | Gate 4 server                                                        | Status / gaps                                                                                                            |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------- | ----------------------------------- | ---------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| dashboard                                                           | `dashboard.view`                                                          | web seam present, body returns true | pending (web + mobile) | n/a (read-only)                                                      | Wire the seam and the guards to the api helpers.                                                                         |
-| rounds (play, review, trends)                                       | `rounds.view`, `rounds.write`, `rounds.review.view`, `rounds.trends.view` | as above                            | pending                | `finalise-round` ✓; direct round/hole-score writes are ownership-RLS | Mobile play screens need the mobile gate.                                                                                |
-| shots (data, no page)                                               | —                                                                         | —                                   | —                      | ownership RLS; server paths under `rounds.write` / `import.write` ✓  | Compliant by §3.1.                                                                                                       |
-| clubs                                                               | `clubs.view`, `clubs.refit`                                               | as above                            | pending                | `refit` ✓; bag edits ownership-RLS                                   | Web refit button should hide/disable via `can(grants, 'clubs.refit')`.                                                   |
-| patterns (data, no page)                                            | —                                                                         | —                                   | —                      | owner RLS (device refit); authoritative refit under `clubs.refit` ✓  | Compliant by §3.1.                                                                                                       |
-| courses                                                             | `courses.view`, `courses.publish`                                         | as above                            | pending                | RLS + RPCs via `can_write_course` ✓; `courses/new` action ownership  | Curators have no UI entry point for others' drafts yet (the list only shows what RLS returns — which now includes them). |
-| import                                                              | `import.view`, `import.write`                                             | as above                            | pending                | `import-sim` ✓                                                       | Hide the import form without `import.write`.                                                                             |
-| Edge Functions                                                      | —                                                                         | —                                   | —                      | refit, import-sim, finalise-round ✓; weather, elevation allowlisted  | Guard test enforces it for new functions.                                                                                |
-| Reference data (`sg_baselines`, `weather_cache`, `elevation_grids`) | —                                                                         | —                                   | —                      | read: any signed-in user; write: service role                        | Unchanged; no key needed while nobody but the service role writes.                                                       |
+| Module / area                                                       | Keys                                                                      | Gate 2 nav    | Gate 3 guard                                 | Gate 4 server                                                        | Status / gaps                                                                                                            |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------- | -------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| dashboard                                                           | `dashboard.view`                                                          | web ✓ (shell) | web ✓ (layout + shell); mobile ✓ (`<Gate>`)  | n/a (read-only)                                                      | Mobile dashboard tiles are not filtered by grants yet.                                                                   |
+| rounds (play, review, trends)                                       | `rounds.view`, `rounds.write`, `rounds.review.view`, `rounds.trends.view` | as above      | as above; mobile play screens (`/round/*`) ✓ | `finalise-round` ✓; direct round/hole-score writes are ownership-RLS | Web `/review` is page `rounds.review` under the `rounds` row (no web `rounds` route).                                    |
+| shots (data, no page)                                               | —                                                                         | —             | —                                            | ownership RLS; server paths under `rounds.write` / `import.write` ✓  | Compliant by §3.1.                                                                                                       |
+| clubs                                                               | `clubs.view`, `clubs.refit`                                               | as above      | ✓ web (layout + shell); mobile where routed  | `refit` ✓; bag edits ownership-RLS                                   | Web refit button should hide/disable via `can(grants, 'clubs.refit')`.                                                   |
+| patterns (data, no page)                                            | —                                                                         | —             | —                                            | owner RLS (device refit); authoritative refit under `clubs.refit` ✓  | Compliant by §3.1.                                                                                                       |
+| courses                                                             | `courses.view`, `courses.publish`                                         | as above      | ✓ web (layout + shell); mobile where routed  | RLS + RPCs via `can_write_course` ✓; `courses/new` action ownership  | Curators have no UI entry point for others' drafts yet (the list only shows what RLS returns — which now includes them). |
+| import                                                              | `import.view`, `import.write`                                             | as above      | ✓ web (layout + shell); mobile where routed  | `import-sim` ✓                                                       | Hide the import form without `import.write`.                                                                             |
+| Edge Functions                                                      | —                                                                         | —             | —                                            | refit, import-sim, finalise-round ✓; weather, elevation allowlisted  | Guard test enforces it for new functions.                                                                                |
+| Reference data (`sg_baselines`, `weather_cache`, `elevation_grids`) | —                                                                         | —             | —                                            | read: any signed-in user; write: service role                        | Unchanged; no key needed while nobody but the service role writes.                                                       |
 
-The view keys are seeded ahead of their Gate 2/3 wiring because the web shell's seam and the
-mobile gate are being built in parallel; wiring them closes the only open "seeded means
-enforced" gap.
+Gates 2–3 are wired on both surfaces, so every seeded view key is enforced. Vocabulary: the web
+nav tree uses the catalogue's page keys verbatim (the earlier `home` / `review` / `review.list` /
+`review.trends` nav keys were renamed; the catalogue, seed and fixture did not change). `/` is
+`dashboard`, `/review` and `/review/{id}` are `rounds.review`, `/review/trends` is
+`rounds.trends`; `rounds` has no web route and is the parent row.

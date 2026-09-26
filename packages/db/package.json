@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "echo 'no lint for sql'",
     "test": "echo 'db tests run against local supabase (pnpm db:test)'",
-    "db:types": "supabase gen types typescript --db-url \"postgresql://postgres@127.0.0.1:55432/caddymate_test?sslmode=disable\" --schema public > src/database.types.ts && prettier --write src/database.types.ts",
+    "db:types": "npx --yes supabase@latest gen types typescript --db-url \"postgresql://postgres@127.0.0.1:55432/caddymate_test?sslmode=disable\" --schema public > src/database.types.ts.tmp && mv src/database.types.ts.tmp src/database.types.ts && prettier --write src/database.types.ts",
     "db:test": "scripts/local-db.sh"
   },
   "devDependencies": {

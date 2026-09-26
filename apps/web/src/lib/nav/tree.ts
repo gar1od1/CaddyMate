@@ -36,27 +36,30 @@ export interface NavNode {
   /** Announced but unbuilt: drawn as "Soon", never linked, never matched. */
   locked?: boolean;
   /**
-   * The permission page this row opens, when it differs from `key` (a replica
-   * child opens its parent's page). See `permissionKey`.
+   * The permission page this row opens, when it differs from `key`. Unused
+   * today: every unlocked row's key is a catalogue page key. See `permissionKey`.
    */
   pageKey?: string;
 }
 
 /** `/` — the dashboard. Reached from the logo; never a LeftNav row. */
-export const DASHBOARD = { key: 'home', label: 'Dashboard', route: '/' } as const;
+export const DASHBOARD = { key: 'dashboard', label: 'Dashboard', route: '/' } as const;
 
-/** Nav order is usage order: the round loop, the bag, courses, data in, Settings last. */
+/**
+ * Nav order is usage order: the round loop, the bag, courses, data in, Settings last.
+ * Keys are the `@caddymate/api` catalogue's page keys (`PAGES`); `tree.test.ts` checks it.
+ */
 export const NAV_TREE: readonly NavNode[] = [
   {
-    key: 'review',
+    // `rounds` has no web page of its own (play is mobile-only); its row opens Review.
+    key: 'rounds',
     label: 'Rounds',
     route: '/review',
     icon: 'rounds',
     children: [
       {
-        // Replica child: the parent is a page and has other children.
-        key: 'review.list',
-        pageKey: 'review',
+        // Replica child: the parent row lands here and has other children.
+        key: 'rounds.review',
         label: 'Review',
         route: '/review',
         icon: 'review',
@@ -64,7 +67,7 @@ export const NAV_TREE: readonly NavNode[] = [
         detailLabel: 'Round',
       },
       {
-        key: 'review.trends',
+        key: 'rounds.trends',
         label: 'Trends',
         route: '/review/trends',
         icon: 'trends',
@@ -126,18 +129,22 @@ export function flattenNav(tree: readonly NavNode[]): NavNode[] {
 
 /**
  * The key the permission seam is asked about for a node: its `pageKey`, else
- * its own key. Nav keys are chosen to equal the permission catalogue's page
- * keys (`@caddymate/api` PAGES) so the two trees read as one.
+ * its own key. Nav keys equal the permission catalogue's page keys
+ * (`@caddymate/api` PAGES) so the two trees read as one.
  */
 export function permissionKey(node: Pick<NavNode, 'key' | 'pageKey'>): string {
   return node.pageKey ?? node.key;
 }
 
-/** Keeps a node when the user may see it or any descendant (a parent stays for its children). */
+/**
+ * Keeps a node when the user may see it or any descendant (a parent stays for
+ * its children). Locked rows open nothing, so they are announced to everyone
+ * without asking the seam (they have no catalogue page yet).
+ */
 export function visibleTree(tree: readonly NavNode[], canSee: (key: string) => boolean): NavNode[] {
   return tree.flatMap((n) => {
     const children = n.children ? visibleTree(n.children, canSee) : undefined;
-    if (!canSee(permissionKey(n)) && !children?.length) return [];
+    if (!n.locked && !canSee(permissionKey(n)) && !children?.length) return [];
     return [{ ...n, children }];
   });
 }
@@ -172,8 +179,9 @@ export function activeTrail(tree: readonly NavNode[], pathname: string): NavNode
 }
 
 /**
- * The permission key a page resolves to (what a page guard asks
- * `canSeeNavItem` about), or null for a path outside the tree.
+ * The permission page key a path resolves to through the tree, or null for a
+ * path outside it. The page guard itself uses `pageKeyForPath` from
+ * `@caddymate/api`; `tree.test.ts` checks the two agree on every route.
  */
 export function menuKeyForPath(tree: readonly NavNode[], pathname: string): string | null {
   if (pathname === DASHBOARD.route) return DASHBOARD.key;

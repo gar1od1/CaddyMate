@@ -122,9 +122,10 @@ PGHOST=/tmp PGPORT=55432 PGUSER=postgres packages/db/scripts/local-db.sh   # mig
 Plus, when you touched `supabase/functions` or the engine: `pnpm vendor:engine`, then
 `cd supabase/functions && deno task test && deno task check`.
 
-CI (`.github/workflows/ci.yml`) runs `format:check`, `typecheck`, `lint`, `test` and `local-db.sh`
-only — the web build, Expo export and Deno tests are **your** job. Never skip a check, never use
-`--no-verify`, fix the root cause rather than the symptom.
+CI (`.github/workflows/ci.yml`) runs `format:check`, `typecheck`, `lint`, `test`, `local-db.sh`
+and the Deno `test` + `check` tasks only — the web build, the Expo export and `pnpm vendor:engine`
+are **your** job. Never skip a check, never use `--no-verify`, fix the root cause rather than the
+symptom.
 
 ## 8. Migrations and generated types
 

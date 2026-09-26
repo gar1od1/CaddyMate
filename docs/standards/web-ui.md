@@ -165,32 +165,40 @@ NAV_TREE ─┬─► LeftNav rows            (visibleTree → rows; activeTrail
 
 - `activeTrail(tree, path)`: the longest `route` or `matchPrefixes` match wins; on a tie the deeper
   node wins (the replica child). Detail routes resolve through `matchPrefixes` (`/clubs/`).
-- `menuKeyForPath(tree, path)`: every page route resolves to exactly one key (`home` for `/`).
-  `tree.test.ts` walks `src/app/**/page.tsx` and fails if a page resolves to nothing.
+- `menuKeyForPath(tree, path)`: every page route resolves to exactly one key (`dashboard` for `/`).
+  `tree.test.ts` walks `src/app/**/page.tsx` and fails if a page resolves to nothing, or to a
+  different page than the guard's `pageKeyForPath` (`@caddymate/api`).
 - `breadcrumbFor(tree, path)`: trail labels (a replica folded into its parent), then one crumb per
   segment below the matched route (`new` → New, `edit` → Edit, otherwise the node's `detailLabel`).
 
 ### 2.6 The gating seam
 
-`apps/web/src/lib/nav/access.ts` exports **`canSeeNavItem(key: string): boolean`**, returning
-`true` for every key today. The shell calls it through `visibleTree(NAV_TREE, canSeeNavItem)` with
-each row's **permission key** (`permissionKey(node)` = `node.pageKey ?? node.key`); a parent stays
-visible while any child is visible. Nav keys are chosen to equal the page keys of the permission
-catalogue in `@caddymate/api` (`home`, `review`, `review.trends`, `clubs`, `courses`, `import`); the
-replica child `review.list` asks about its parent page `review`. The permissions work replaces the
-body of `canSeeNavItem` (and may add a page guard using `menuKeyForPath`) without touching the
-shell. Hiding a row is a courtesy, not a security boundary: RLS and the page's own checks guard the
-data.
+`apps/web/src/lib/nav/access.ts` exports **`canSeeNavItem(key, grants)`** (the `@caddymate/api`
+helper) and **`decidePage(path, grants)`** (the page guard's open / redirect / denied decision).
+The root layout loads the request's grants once (`lib/auth/grants.ts#getGrants`, `React.cache`,
+player fallback on error), runs `decidePage` on `x-pathname` (stamped by `proxy.ts`) and passes
+the grants to `AppShell`, which builds `visibleTree(NAV_TREE, k => canSeeNavItem(k, grants))`
+with each row's **permission key** (`permissionKey(node)` = `node.pageKey ?? node.key`); a parent
+stays visible while any child is visible, and locked rows are shown to everyone. Layouts do not
+re-render on client navigation, so `AppShell` re-runs `decidePage` on every pathname: a denied
+page is replaced with `<first page>?denied=<page>` (`DeniedNotice` explains it), or with
+`NoAccess` when nothing is open. See docs/standards/permissions.md §5.
+
+Nav keys **are** the catalogue's page keys (`dashboard`, `rounds`, `rounds.review`,
+`rounds.trends`, `clubs`, `courses`, `import`); `tree.test.ts` enforces it. `rounds` has no web
+page of its own, so its row lands on `/review`, whose replica child is the `rounds.review` page.
+Hiding a row is a courtesy, not a security boundary: RLS and gate 4 guard the data.
 
 ### 2.7 Vocabulary: labels, keys, routes, icons (**Adopted**)
 
 - **Labels:** sentence case; plural nouns for lists (Rounds, Clubs, Courses), singular for
   singletons (Trends, Import). A view label names the slice, not an action. "Home" appears in no
   menu; "Dashboard" is the `/` breadcrumb.
-- **Keys:** lower-case kebab-case, one dot per level, a child key extends its parent's
-  (`review.trends`). The key is the stable identifier; if a route moves, redirect the route and keep
-  the key.
-- **Routes:** a key and route should read the same way; where they differ (`review.list` ↔
+- **Keys:** the permission catalogue's page key for any row that opens a page (lower-case, one dot
+  per level, a child key extends its parent's: `rounds.trends`); locked rows use kebab-case until
+  their page is catalogued. The key is the stable identifier; if a route moves, redirect the route
+  and keep the key.
+- **Routes:** a key and route should read the same way; where they differ (`rounds.review` ↔
   `/review`) the key wins.
 - **Icons:** names from `components/shell/Icon.tsx` — single-weight 1.75 line glyphs on 24×24,
   `currentColor`, never emoji. Reuse a name for the same concept. Add a missing icon to the set, in

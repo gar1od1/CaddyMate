@@ -2,10 +2,14 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 /**
- * Refreshes the Supabase session cookie on every request and redirects
- * signed-out visitors to /sign-in. (Next 16 name for middleware.)
+ * Gate 1 (docs/standards/permissions.md §5): refreshes the Supabase session
+ * cookie on every request and redirects signed-out visitors to /sign-in.
+ * Per-page access (gate 3) is the root layout's job. (Next 16 name for
+ * middleware.)
  */
 export async function proxy(request: NextRequest) {
+  // The root layout's page guard reads the path from here (layouts get no pathname).
+  request.headers.set('x-pathname', request.nextUrl.pathname);
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

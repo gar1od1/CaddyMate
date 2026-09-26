@@ -48,3 +48,13 @@ jobs:
       - run: sudo apt-get update -q && sudo apt-get install -y -q postgresql-client
       - name: Apply migrations and run RLS smoke test
         run: packages/db/scripts/local-db.sh
+
+  deno:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Edge Function tests and type check
+        run: cd supabase/functions && deno task test && deno task check

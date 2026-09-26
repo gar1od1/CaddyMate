@@ -64,6 +64,8 @@ export function UserMenu() {
             onClick={async () => {
               await createClient().auth.signOut();
               router.replace('/sign-in');
+              // Drop the root layout's grants for this user (AppShell).
+              router.refresh();
             }}
           >
             <Icon name="sign-out" size={18} />

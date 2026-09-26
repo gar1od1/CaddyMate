@@ -56,7 +56,7 @@ export default async function TrendsPage({
   if (!user) redirect('/sign-in');
   const db = supabase as unknown as Db;
 
-  const node = findNode(NAV_TREE, 'review.trends')!;
+  const node = findNode(NAV_TREE, 'rounds.trends')!;
   const view = activeView(node, new URLSearchParams(sp.view ? { view: sp.view } : {}))!.key;
   const rounds = await listRoundRows(db, 200);
   const played = rounds.filter((r) => r.status !== 'abandoned');

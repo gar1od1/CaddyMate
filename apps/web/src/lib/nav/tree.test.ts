@@ -1,9 +1,11 @@
 import { readdirSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isPageKey, pageKeyForPath } from '@caddymate/api';
 import { describe, expect, it } from 'vitest';
 import { ICON_NAMES } from '@/components/shell/icon-names';
 import {
+  DASHBOARD,
   NAV_TREE,
   activeTrail,
   activeView,
@@ -84,19 +86,32 @@ describe('nav tree invariants', () => {
       expect(menuKeyForPath(NAV_TREE, r), r).not.toBeNull();
     }
   });
+
+  it('uses the permission catalogue page keys for every unlocked row and the dashboard', () => {
+    expect(isPageKey(DASHBOARD.key)).toBe(true);
+    for (const n of all.filter((x) => !x.locked))
+      expect(isPageKey(permissionKey(n)), n.key).toBe(true);
+  });
+
+  it('resolves every page route to the same page as the api guard (pageKeyForPath)', () => {
+    for (const r of appRoutes()) {
+      if (isShellless(r)) continue;
+      expect(menuKeyForPath(NAV_TREE, r), r).toBe(pageKeyForPath(r, 'web'));
+    }
+  });
 });
 
 describe('activeTrail', () => {
   it('prefers the deepest node on a shared route (replica child)', () => {
-    expect(keys(activeTrail(NAV_TREE, '/review'))).toEqual(['review', 'review.list']);
+    expect(keys(activeTrail(NAV_TREE, '/review'))).toEqual(['rounds', 'rounds.review']);
   });
 
   it('lets the longest route win among siblings', () => {
-    expect(keys(activeTrail(NAV_TREE, '/review/trends'))).toEqual(['review', 'review.trends']);
+    expect(keys(activeTrail(NAV_TREE, '/review/trends'))).toEqual(['rounds', 'rounds.trends']);
   });
 
   it('matches detail routes through their prefixes', () => {
-    expect(keys(activeTrail(NAV_TREE, '/review/abc'))).toEqual(['review', 'review.list']);
+    expect(keys(activeTrail(NAV_TREE, '/review/abc'))).toEqual(['rounds', 'rounds.review']);
     expect(keys(activeTrail(NAV_TREE, '/courses/abc/edit'))).toEqual(['courses']);
     expect(keys(activeTrail(NAV_TREE, '/clubs/abc'))).toEqual(['clubs']);
   });
@@ -111,10 +126,10 @@ describe('activeTrail', () => {
 
 describe('menuKeyForPath and permissionKey', () => {
   it('maps pages to permission page keys', () => {
-    expect(menuKeyForPath(NAV_TREE, '/')).toBe('home');
-    expect(menuKeyForPath(NAV_TREE, '/review')).toBe('review');
-    expect(menuKeyForPath(NAV_TREE, '/review/123')).toBe('review');
-    expect(menuKeyForPath(NAV_TREE, '/review/trends')).toBe('review.trends');
+    expect(menuKeyForPath(NAV_TREE, '/')).toBe('dashboard');
+    expect(menuKeyForPath(NAV_TREE, '/review')).toBe('rounds.review');
+    expect(menuKeyForPath(NAV_TREE, '/review/123')).toBe('rounds.review');
+    expect(menuKeyForPath(NAV_TREE, '/review/trends')).toBe('rounds.trends');
     expect(menuKeyForPath(NAV_TREE, '/import')).toBe('import');
     expect(menuKeyForPath(NAV_TREE, '/elsewhere')).toBeNull();
     expect(permissionKey({ key: 'a.b', pageKey: 'a' })).toBe('a');
@@ -126,16 +141,27 @@ describe('visibleTree', () => {
     expect(flattenNav(visibleTree(NAV_TREE, () => true))).toHaveLength(flattenNav(NAV_TREE).length);
   });
 
-  it('drops hidden rows but keeps a parent for a visible child', () => {
-    const t = visibleTree(NAV_TREE, (k) => k === 'review.trends');
-    expect(flattenNav(t).map((n) => n.key)).toEqual(['review', 'review.trends']);
+  it('drops hidden rows but keeps a parent for a visible child, and keeps locked rows', () => {
+    const t = visibleTree(NAV_TREE, (k) => k === 'rounds.trends');
+    expect(flattenNav(t).map((n) => n.key)).toEqual([
+      'rounds',
+      'rounds.trends',
+      'settings',
+      'settings.my-settings',
+    ]);
   });
 
-  it('asks about the permission key (a replica child follows its parent page)', () => {
+  it('asks about the permission key (pageKey when set), never about locked rows', () => {
     const asked: string[] = [];
     visibleTree(NAV_TREE, (k) => (asked.push(k), true));
-    expect(asked).not.toContain('review.list');
-    expect(asked.filter((k) => k === 'review')).toHaveLength(2);
+    expect(asked).toEqual([
+      'rounds.review',
+      'rounds.trends',
+      'rounds',
+      'clubs',
+      'courses',
+      'import',
+    ]);
   });
 });
 
@@ -160,7 +186,7 @@ describe('breadcrumbFor', () => {
 });
 
 describe('views', () => {
-  const trends = findNode(NAV_TREE, 'review.trends')!;
+  const trends = findNode(NAV_TREE, 'rounds.trends')!;
 
   it('resolves the active view from the query string, defaulting when absent or unknown', () => {
     expect(activeView(trends, new URLSearchParams(''))!.key).toBe('strokes-gained');
