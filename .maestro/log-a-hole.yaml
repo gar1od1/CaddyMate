@@ -1,0 +1,93 @@
+# Smoke test "log a hole" (docs/SPEC.md §16 Testing, §5.3–§5.7):
+# sign in → start round → hole 1 → Hit → Ball here → Holed → the scorecard
+# shows 2 strokes on hole 1 (Hit + Ball here is shot 1; Holed with no Hit
+# reconstructs shot 2, §5.6).
+#
+# Run (apps/mobile/README.md "Maestro smoke test"):
+#   maestro test .maestro/log-a-hole.yaml \
+#     -e MAESTRO_TEST_EMAIL=… -e MAESTRO_TEST_CODE=… \
+#     -e TEE_LAT=… -e TEE_LNG=… -e BALL_LAT=… -e BALL_LNG=…
+# BALL_* must be on hole 1, off the green (the green switches to the putt
+# card, which has no Holed button) and outside penalty areas.
+appId: ie.caddymate.app
+env:
+  # Defaults: near the Moyvalley clubhouse (the engine's test origin). Override
+  # with hole 1's tee and a fairway point of the course the test user plays.
+  TEE_LAT: '53.4245'
+  TEE_LNG: '-6.9165'
+  BALL_LAT: '53.4260'
+  BALL_LNG: '-6.9165'
+---
+- launchApp:
+    clearState: true
+    permissions:
+      location: allow
+- setLocation:
+    latitude: ${TEE_LAT}
+    longitude: ${TEE_LNG}
+- runFlow: sign-in.yaml
+
+# Start a round on the default course and tee set.
+- tapOn:
+    id: home-start-round
+- extendedWaitUntil:
+    visible:
+      id: new-round-tee-off
+      enabled: true
+    timeout: 30000
+- tapOn:
+    id: new-round-tee-off
+
+# Hole 1, shot 1: Hit on the tee.
+- extendedWaitUntil:
+    visible:
+      id: play-hit
+    timeout: 30000
+- assertVisible: 'Hole 1'
+- tapOn:
+    id: play-hit
+- runFlow:
+    when:
+      visible: 'Use anyway'
+    commands:
+      - tapOn: 'Use anyway'
+
+# Walk to the ball: Ball here ends shot 1.
+- setLocation:
+    latitude: ${BALL_LAT}
+    longitude: ${BALL_LNG}
+- extendedWaitUntil:
+    visible:
+      id: play-ball-here
+      enabled: true
+    timeout: 15000
+- tapOn:
+    id: play-ball-here
+- runFlow:
+    when:
+      visible: 'Use anyway'
+    commands:
+      - tapOn: 'Use anyway'
+
+# Holed with no Hit: shot 2 is reconstructed and ends at the pin.
+- extendedWaitUntil:
+    visible:
+      id: play-holed
+      enabled: true
+    timeout: 15000
+- tapOn:
+    id: play-holed
+- extendedWaitUntil:
+    visible:
+      id: play-hole-done
+      text: 'Holed · 2 strokes.*'
+    timeout: 15000
+
+# The scorecard counts both records.
+- tapOn:
+    id: play-scorecard
+- extendedWaitUntil:
+    visible:
+      id: scorecard-strokes-1
+      text: '2'
+    timeout: 15000

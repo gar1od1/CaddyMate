@@ -13,7 +13,13 @@ import {
 } from '@caddymate/api';
 import { initialBearingDeg, type LatLng } from '@caddymate/engine';
 import { colors } from '@caddymate/ui';
-import { GeoJSONSource, Layer, Marker, type CameraStop } from '@maplibre/maplibre-react-native';
+import {
+  GeoJSONSource,
+  Layer,
+  Marker,
+  ViewAnnotation,
+  type CameraStop,
+} from '@maplibre/maplibre-react-native';
 import { memo, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { CourseMap } from '@/components/CourseMap';
@@ -156,6 +162,43 @@ interface Props {
   drop: LatLng | null;
   onPress: (p: LatLng) => void;
   onShotPress: (id: string) => void;
+  /**
+   * Draggable start/end handles of the shot being edited (§5.6). `Marker`
+   * (v11) has no `draggable`/`onDragEnd`, so these are `ViewAnnotation`s,
+   * which do; the editor's "Move start/end, then tap the map" stays as the
+   * fallback (and the only way on a device where dragging misbehaves).
+   */
+  editHandles?: {
+    start: LatLng | null;
+    end: LatLng | null;
+    onDragEnd: (which: 'start' | 'end', p: LatLng) => void;
+  } | null;
+}
+
+function DragHandle({
+  which,
+  at,
+  onDragEnd,
+}: {
+  which: 'start' | 'end';
+  at: LatLng;
+  onDragEnd: (which: 'start' | 'end', p: LatLng) => void;
+}) {
+  return (
+    <ViewAnnotation
+      id={`drag-${which}`}
+      lngLat={toPosition(at)}
+      draggable
+      onDragEnd={(e) => {
+        const [lng, lat] = e.nativeEvent.lngLat;
+        onDragEnd(which, { lat, lng });
+      }}
+    >
+      <View style={[styles.handle, which === 'end' && styles.handleEnd]}>
+        <Text style={styles.handleText}>{which === 'start' ? 'S' : 'E'}</Text>
+      </View>
+    </ViewAnnotation>
+  );
 }
 
 export function HoleMap(props: Props) {
@@ -287,6 +330,20 @@ export function HoleMap(props: Props) {
           <View style={styles.drop} />
         </Marker>
       ) : null}
+      {props.editHandles?.start ? (
+        <DragHandle
+          which="start"
+          at={props.editHandles.start}
+          onDragEnd={props.editHandles.onDragEnd}
+        />
+      ) : null}
+      {props.editHandles?.end ? (
+        <DragHandle
+          which="end"
+          at={props.editHandles.end}
+          onDragEnd={props.editHandles.onDragEnd}
+        />
+      ) : null}
       {pin ? (
         <Marker id="pin" lngLat={toPosition(pin)} anchor="bottom">
           <View style={styles.pinWrap}>
@@ -336,6 +393,18 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#FFF',
   },
+  handle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: colors.accent,
+  },
+  handleEnd: { borderColor: colors.warning },
+  handleText: { fontSize: 12, fontWeight: '800', color: '#000' },
   pinWrap: { alignItems: 'flex-start' },
   flag: { width: 14, height: 10, backgroundColor: colors.danger, marginLeft: 2 },
   pole: { width: 2, height: 20, backgroundColor: '#FFF', marginLeft: 2 },

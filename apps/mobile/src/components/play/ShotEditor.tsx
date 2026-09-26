@@ -1,6 +1,7 @@
 /**
  * Edit one shot (docs/SPEC.md §5.6): change club / lie / slope / strike /
- * putt feet, move its start or end on the map, delete, insert before/after.
+ * putt feet, move its start or end on the map (drag the S / E handles, or
+ * "Move" then tap), delete, insert before/after.
  * Every save goes through saveHole → recomputeHoleShots.
  */
 import { isPenaltyRecord, type Club, type Shot } from '@caddymate/api';
@@ -102,7 +103,7 @@ export function ShotEditor({ shot, clubs, onChange, onMove, onDelete, onInsert, 
           </View>
         </>
       ) : null}
-      <Field label="Position (then tap the map)">
+      <Field label="Position (drag S / E on the map, or Move then tap the map)">
         <View style={styles.row}>
           <Chip label="Move start" onPress={() => onMove('start')} />
           <Chip label={penaltyRecord ? 'Move drop' : 'Move end'} onPress={() => onMove('end')} />

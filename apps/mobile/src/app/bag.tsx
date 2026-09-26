@@ -13,6 +13,7 @@ import {
 } from '@caddymate/api';
 import { metresToYards, yardsToMetres } from '@caddymate/engine';
 import { colors, radius, spacing, type } from '@caddymate/ui';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   Alert,
@@ -29,7 +30,9 @@ import { ChipRow } from '@/components/ui/Chip';
 import { Card, Field } from '@/components/ui/Section';
 import { Stepper } from '@/components/ui/Stepper';
 import { useClubs } from '@/data/hooks';
+import { canOpenClubDispersion } from '@/features/home/tiles';
 import { useAuth } from '@/lib/auth';
+import { useGrants } from '@/lib/grants';
 import { yd } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 
@@ -130,6 +133,7 @@ export default function Bag() {
   const { session } = useAuth();
   const userId = session?.user.id ?? '';
   const clubs = useClubs();
+  const grants = useGrants();
   const [editing, setEditing] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -253,6 +257,20 @@ export default function Bag() {
                 {item.kind === 'putter' ? '' : yd(item.stockTotalM)}
                 {item.kind === 'putter' ? '' : <Text style={styles.caption}> yd</Text>}
               </Text>
+              {/* Per-club dispersion (§14); putts have no pattern (§8). */}
+              {item.kind !== 'putter' && canOpenClubDispersion(grants, item.id) ? (
+                <Pressable
+                  hitSlop={8}
+                  testID={`bag-dispersion-${item.id}`}
+                  accessibilityLabel={`${item.name} dispersion`}
+                  style={({ pressed }) => [styles.link, pressed && { opacity: 0.7 }]}
+                  onPress={() =>
+                    router.push({ pathname: '/review/clubs/[clubId]', params: { clubId: item.id } })
+                  }
+                >
+                  <Text style={styles.linkText}>Dispersion ›</Text>
+                </Pressable>
+              ) : null}
             </Pressable>
           )
         }
@@ -279,6 +297,13 @@ const styles = StyleSheet.create({
   clubName: { ...type.heading, color: colors.text },
   caption: { ...type.caption, color: colors.textMuted },
   distance: { fontSize: 28, fontWeight: '800', color: colors.text },
+  link: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceMuted,
+  },
+  linkText: { ...type.caption, color: colors.accent, fontWeight: '800' },
   editor: { borderWidth: 1, borderColor: colors.accent },
   input: {
     backgroundColor: colors.bgElevated,

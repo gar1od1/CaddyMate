@@ -1,0 +1,29 @@
+# Sub-flow: email + one-time-code sign-in (apps/mobile/src/app/sign-in.tsx).
+# Needs MAESTRO_TEST_EMAIL and MAESTRO_TEST_CODE — see apps/mobile/README.md
+# "Maestro smoke test" for how to get a fixed code for a test user.
+appId: ie.caddymate.app
+---
+- extendedWaitUntil:
+    visible:
+      id: sign-in-email
+    timeout: 20000
+- tapOn:
+    id: sign-in-email
+- inputText: ${MAESTRO_TEST_EMAIL}
+- hideKeyboard
+- tapOn:
+    id: sign-in-submit
+- extendedWaitUntil:
+    visible:
+      id: sign-in-code
+    timeout: 20000
+- tapOn:
+    id: sign-in-code
+- inputText: ${MAESTRO_TEST_CODE}
+- hideKeyboard
+- tapOn:
+    id: sign-in-submit
+- extendedWaitUntil:
+    visible:
+      id: home-start-round
+    timeout: 30000

@@ -235,6 +235,36 @@ export function putt(
   ];
 }
 
+export type ReliefKind = Exclude<PenaltyKind, 'none'>;
+
+/**
+ * Where a relief option drops: a map point, the stroke-and-distance spot
+ * (start of the last real shot), a GPS fix taken now, or `null` = ask for a
+ * tap on the map.
+ */
+export type ReliefDrop = LatLng | 'stroke-distance' | 'gps' | null;
+
+/**
+ * Relief options offered after a penalty (§5.4, Rules 17–19): OB / lost ball
+ * is stroke-and-distance only; penalty areas and unplayable also offer a drop
+ * where the player stands (back-on-line, or lateral for red) or a map tap.
+ */
+export function reliefOptions(kind: ReliefKind): { label: string; drop: ReliefDrop }[] {
+  const sd = { label: 'Stroke & distance', drop: 'stroke-distance' as const };
+  if (kind === 'ob') return [sd];
+  return [
+    sd,
+    {
+      label:
+        kind === 'yellow'
+          ? 'Back-on-line: drop here (GPS)'
+          : 'Lateral / back-on-line: drop here (GPS)',
+      drop: 'gps',
+    },
+    { label: 'Tap drop point on map', drop: null },
+  ];
+}
+
 /**
  * Penalty relief: a `penalty` record (club null, 1 stroke) from where the
  * ball was to the relief spot, keeping the chain and the stroke count right.
@@ -242,7 +272,7 @@ export function putt(
 export function penalty(
   shots: readonly Shot[],
   base: ShotBase,
-  kind: Exclude<PenaltyKind, 'none'>,
+  kind: ReliefKind,
   drop: LatLng,
 ): Shot[] {
   return [

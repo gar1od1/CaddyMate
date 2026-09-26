@@ -125,6 +125,7 @@ export default function NewRound() {
           courses.map((c) => (
             <Pressable
               key={c.id}
+              testID={`new-round-course-${c.slug}`}
               onPress={() => setCourseId(c.id)}
               style={[styles.course, c.id === courseId && styles.courseSelected]}
             >
@@ -178,6 +179,7 @@ export default function NewRound() {
       <Button
         big
         label="Tee off"
+        testID="new-round-tee-off"
         busy={busy}
         disabled={!tee || !bundle.data}
         onPress={() => void start()}

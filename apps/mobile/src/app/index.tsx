@@ -5,12 +5,14 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/Section';
 import { useLocalRounds, useRemoteRoundsMerge, useSyncStatus } from '@/data/hooks';
+import { homeTiles } from '@/features/home/tiles';
 import { useHoleScoresSummary } from '@/features/scorecard/useScorecard';
 import { useAuth } from '@/lib/auth';
+import { useGrants } from '@/lib/grants';
 import { shortDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 
-function RoundRow({ round }: { round: Round }) {
+function RoundRow({ round, canReview }: { round: Round; canReview: boolean }) {
   const summary = useHoleScoresSummary(round.id);
   const live = round.status === 'live';
   return (
@@ -34,9 +36,10 @@ function RoundRow({ round }: { round: Round }) {
         <Text style={styles.rowScore}>{summary.gross || '–'}</Text>
         <Text style={styles.rowSub}>{summary.points} pts</Text>
       </View>
-      {round.status === 'complete' ? (
+      {round.status === 'complete' && canReview ? (
         <Pressable
           hitSlop={8}
+          testID={`home-review-${round.id}`}
           style={({ pressed }) => [styles.review, pressed && { opacity: 0.7 }]}
           onPress={() =>
             router.push({ pathname: '/review/[roundId]', params: { roundId: round.id } })
@@ -55,28 +58,54 @@ export default function Home() {
   const rounds = useLocalRounds();
   const sync = useSyncStatus();
   const live = rounds.data?.find((r) => r.status === 'live');
+  // Gate 2: a tile shows only when its route's page is held (permissions.md §5).
+  const tiles = homeTiles(useGrants());
 
   return (
     <View style={styles.screen}>
-      <View style={styles.hero}>
-        {live ? (
+      {tiles.play ? (
+        <View style={styles.hero}>
+          {live ? (
+            <Button
+              big
+              label="Resume round"
+              testID="home-resume-round"
+              onPress={() => router.push({ pathname: '/round/[id]', params: { id: live.id } })}
+            />
+          ) : null}
           <Button
             big
-            label="Resume round"
-            onPress={() => router.push({ pathname: '/round/[id]', params: { id: live.id } })}
+            variant={live ? 'secondary' : 'primary'}
+            label="Start round"
+            testID="home-start-round"
+            onPress={() => router.push('/round/new')}
+          />
+        </View>
+      ) : null}
+      <View style={styles.actions}>
+        {tiles.bag ? (
+          <Button
+            variant="secondary"
+            label="My bag"
+            testID="home-bag"
+            onPress={() => router.push('/bag')}
           />
         ) : null}
+        {tiles.trends ? (
+          <Button
+            variant="secondary"
+            label="Trends"
+            testID="home-trends"
+            onPress={() => router.push('/review/trends')}
+          />
+        ) : null}
+        <View style={{ flex: 1 }} />
         <Button
-          big
-          variant={live ? 'secondary' : 'primary'}
-          label="Start round"
-          onPress={() => router.push('/round/new')}
+          variant="ghost"
+          label="Sign out"
+          testID="home-sign-out"
+          onPress={() => void supabase.auth.signOut()}
         />
-      </View>
-      <View style={styles.actions}>
-        <Button variant="secondary" label="My bag" onPress={() => router.push('/bag')} />
-        <Button variant="secondary" label="Trends" onPress={() => router.push('/review/trends')} />
-        <Button variant="ghost" label="Sign out" onPress={() => void supabase.auth.signOut()} />
       </View>
       <View style={styles.listHeader}>
         <Label>Recent rounds</Label>
@@ -87,7 +116,7 @@ export default function Home() {
       <FlatList
         data={rounds.data ?? []}
         keyExtractor={(r) => r.id}
-        renderItem={({ item }) => <RoundRow round={item} />}
+        renderItem={({ item }) => <RoundRow round={item} canReview={tiles.review} />}
         ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
         ListEmptyComponent={
           <Text style={styles.empty}>
@@ -104,7 +133,7 @@ export default function Home() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg, padding: spacing.lg, gap: spacing.md },
   hero: { flexDirection: 'row', gap: spacing.md },
-  actions: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
+  actions: { flexDirection: 'row', gap: spacing.sm },
   listHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',

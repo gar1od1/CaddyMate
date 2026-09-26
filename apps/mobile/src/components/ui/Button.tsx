@@ -9,9 +9,20 @@ interface Props {
   busy?: boolean;
   style?: ViewStyle;
   big?: boolean;
+  /** E2E handle (Maestro `id:`). */
+  testID?: string;
 }
 
-export function Button({ label, onPress, variant = 'primary', disabled, busy, style, big }: Props) {
+export function Button({
+  label,
+  onPress,
+  variant = 'primary',
+  disabled,
+  busy,
+  style,
+  big,
+  testID,
+}: Props) {
   const bg =
     variant === 'primary'
       ? colors.accent
@@ -24,6 +35,9 @@ export function Button({ label, onPress, variant = 'primary', disabled, busy, st
     variant === 'primary' ? colors.accentText : variant === 'ghost' ? colors.accent : colors.text;
   return (
     <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!(disabled || busy), busy: !!busy }}
       disabled={disabled || busy}
       onPress={onPress}
       style={({ pressed }) => [

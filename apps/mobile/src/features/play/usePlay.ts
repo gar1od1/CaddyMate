@@ -473,6 +473,12 @@ export function usePlay(args: {
       setMapMode({ kind: 'aim' });
     });
 
+  /** Move a shot's start or end (tap-to-move or a dragged handle, §5.6); the chain follows. */
+  const moveShot = (shotId: string, which: 'start' | 'end', p: LatLng) =>
+    guarded(() =>
+      persist(which === 'start' ? ops.moveStart(shots, shotId, p) : ops.moveEnd(shots, shotId, p)),
+    );
+
   const onMapPress = (p: LatLng) => {
     switch (mapMode.kind) {
       case 'aim':
@@ -490,11 +496,7 @@ export function usePlay(args: {
       case 'move': {
         const { shotId, which } = mapMode;
         setMapMode({ kind: 'aim' });
-        void guarded(() =>
-          persist(
-            which === 'start' ? ops.moveStart(shots, shotId, p) : ops.moveEnd(shots, shotId, p),
-          ),
-        );
+        void moveShot(shotId, which, p);
         return;
       }
     }
@@ -575,6 +577,7 @@ export function usePlay(args: {
       onStrike,
       onPenalty,
       onMapPress,
+      moveShot,
       editShot,
       deleteShot,
       insertShot,

@@ -12,10 +12,12 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SignedBars } from '@/components/review/charts';
 import { GradeMatrixView, StatRow, StatTile, Tabs } from '@/components/review/parts';
 import { Replay } from '@/components/review/Replay';
+import { ShotThumb } from '@/components/review/ShotThumb';
 import { Button } from '@/components/ui/Button';
 import { Card, Label } from '@/components/ui/Section';
 import { useCourseBundle } from '@/data/hooks';
 import { CATEGORY_LABEL, fmtSg, shotTitle } from '@/features/review/review';
+import { worstShotFrames } from '@/features/review/thumbnail';
 import { gradeRoundWhenSynced, useRemote, useRoundReview } from '@/features/review/useReview';
 import { shortDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
@@ -40,6 +42,14 @@ export default function RoundReviewScreen() {
   );
   const patternMap = useMemo(() => new Map(patterns.map((p) => [p.clubId, p.params])), [patterns]);
   const complete = review?.round.status === 'complete';
+  // Thumbnail geometry for the worst five (§14): the same frames Replay draws.
+  const worst = useMemo(
+    () =>
+      review && bundle.data
+        ? new Map(worstShotFrames(review, patternMap, bundle.data.holes).map((w) => [w.shotId, w]))
+        : null,
+    [review, patternMap, bundle.data],
+  );
 
   const saveGrades = useCallback(() => {
     setGradeState('saving');
@@ -165,21 +175,32 @@ export default function RoundReviewScreen() {
             {review.mostExpensive.length === 0 ? (
               <Text style={styles.muted}>Nothing cost you more than expected. Nice.</Text>
             ) : (
-              review.mostExpensive.map(({ shot, cost }) => (
-                <Pressable
-                  key={shot.shotId}
-                  onPress={() => openShot(shot.holeNumber, shot.shotId)}
-                  style={({ pressed }) => [styles.worst, pressed && { opacity: 0.7 }]}
-                >
-                  <View style={styles.worstHead}>
-                    <Text style={styles.worstTitle}>
-                      {shotTitle(shot.holeNumber, shot.seq, shot.clubLabel)}
-                    </Text>
-                    <Text style={styles.worstCost}>−{cost.toFixed(2)}</Text>
-                  </View>
-                  <Text style={styles.body}>{shot.explanation}</Text>
-                </Pressable>
-              ))
+              review.mostExpensive.map(({ shot, cost }) => {
+                const w = worst?.get(shot.shotId);
+                return (
+                  <Pressable
+                    key={shot.shotId}
+                    testID={`review-worst-${shot.shotId}`}
+                    onPress={() => openShot(shot.holeNumber, shot.shotId)}
+                    style={({ pressed }) => [styles.worst, pressed && { opacity: 0.7 }]}
+                  >
+                    <ShotThumb
+                      frame={w?.frame ?? null}
+                      hole={bundle.data?.holes.find((h) => h.number === shot.holeNumber) ?? null}
+                      pin={w?.pin ?? null}
+                    />
+                    <View style={styles.worstText}>
+                      <View style={styles.worstHead}>
+                        <Text style={styles.worstTitle}>
+                          {shotTitle(shot.holeNumber, shot.seq, shot.clubLabel)}
+                        </Text>
+                        <Text style={styles.worstCost}>−{cost.toFixed(2)}</Text>
+                      </View>
+                      <Text style={styles.body}>{shot.explanation}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })
             )}
           </Card>
         </>
@@ -332,11 +353,14 @@ const styles = StyleSheet.create({
   bold: { fontWeight: '800' },
   actions: { flexDirection: 'row', justifyContent: 'space-between' },
   worst: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     backgroundColor: colors.bgElevated,
     borderRadius: radius.md,
     padding: spacing.md,
-    gap: spacing.xs,
+    gap: spacing.md,
   },
+  worstText: { flex: 1, gap: spacing.xs },
   worstHead: { flexDirection: 'row', justifyContent: 'space-between' },
   worstTitle: { ...type.caption, color: colors.textMuted, fontWeight: '700' },
   worstCost: { ...type.caption, color: colors.danger, fontWeight: '800' },

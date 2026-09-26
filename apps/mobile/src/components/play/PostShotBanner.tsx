@@ -7,7 +7,7 @@ import type { PenaltyKind, Shot, StrikeKind } from '@caddymate/api';
 import { colors, radius, spacing, type } from '@caddymate/ui';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Chip, ChipRow } from '@/components/ui/Chip';
-import type { LatLng } from '@caddymate/engine';
+import { reliefOptions, type ReliefDrop, type ReliefKind } from '@/features/play/shotOps';
 
 const STRIKES: { value: StrikeKind; label: string }[] = [
   { value: 'good', label: 'Good' },
@@ -19,8 +19,8 @@ const STRIKES: { value: StrikeKind; label: string }[] = [
   { value: 'shank', label: 'Shank' },
 ];
 
-type Relief = Exclude<PenaltyKind, 'none'>;
-type Drop = LatLng | 'stroke-distance' | 'gps' | null;
+type Relief = ReliefKind;
+type Drop = ReliefDrop;
 
 const PENALTY_TITLE: Record<Relief, string> = {
   lateral: 'Red penalty area',
@@ -28,23 +28,6 @@ const PENALTY_TITLE: Record<Relief, string> = {
   ob: 'Out of bounds',
   unplayable: 'Unplayable',
 };
-
-/** Relief options per rule: OB is stroke-and-distance only. */
-export function reliefOptions(kind: Relief): { label: string; drop: Drop }[] {
-  const sd = { label: 'Stroke & distance', drop: 'stroke-distance' as const };
-  if (kind === 'ob') return [sd];
-  return [
-    sd,
-    {
-      label:
-        kind === 'yellow'
-          ? 'Back-on-line: drop here (GPS)'
-          : 'Lateral / back-on-line: drop here (GPS)',
-      drop: 'gps',
-    },
-    { label: 'Tap drop point on map', drop: null },
-  ];
-}
 
 export function PenaltyOptions({
   kind,

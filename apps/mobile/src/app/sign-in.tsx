@@ -59,6 +59,7 @@ export default function SignIn() {
 
         {step === 'email' ? (
           <TextInput
+            testID="sign-in-email"
             style={styles.input}
             placeholder="you@example.com"
             placeholderTextColor={colors.textFaint}
@@ -70,6 +71,7 @@ export default function SignIn() {
           />
         ) : (
           <TextInput
+            testID="sign-in-code"
             style={styles.input}
             placeholder="123456"
             placeholderTextColor={colors.textFaint}
@@ -83,6 +85,7 @@ export default function SignIn() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <Pressable
+          testID="sign-in-submit"
           style={({ pressed }) => [
             styles.button,
             pressed && styles.buttonPressed,

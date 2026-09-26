@@ -20,6 +20,7 @@ function Row({ r, onPress }: { r: CardRow; onPress: () => void }) {
       <Text style={[styles.cell, styles.faint]}>{r.strokeIndex ?? '–'}</Text>
       <View style={styles.cell}>
         <Text
+          testID={`scorecard-strokes-${String(r.number)}`}
           style={[
             styles.score,
             diff !== null && diff < 0 && styles.under,

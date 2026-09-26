@@ -268,7 +268,7 @@ function Play(props: {
       ) : null}
       {selectedShot ? null : play.done ? (
         <View style={styles.doneRow}>
-          <Text style={styles.done}>
+          <Text style={styles.done} testID="play-hole-done">
             Holed · {strokes} strokes
             {score?.points != null ? ` · ${String(score.points)} pts` : ''}
           </Text>
@@ -314,12 +314,19 @@ function Play(props: {
           )}
           <View style={styles.actions}>
             {!play.pending ? (
-              <Button big label="Hit" busy={play.busy} onPress={() => void play.actions.onHit()} />
+              <Button
+                big
+                label="Hit"
+                testID="play-hit"
+                busy={play.busy}
+                onPress={() => void play.actions.onHit()}
+              />
             ) : null}
             <Button
               big
               variant={play.pending ? 'primary' : 'secondary'}
               label="Ball here"
+              testID="play-ball-here"
               busy={play.busy}
               onPress={() => void play.actions.onBallHere()}
             />
@@ -327,6 +334,7 @@ function Play(props: {
               big
               variant="secondary"
               label="Holed"
+              testID="play-holed"
               onPress={() => void play.actions.onHoled()}
             />
           </View>
@@ -349,6 +357,15 @@ function Play(props: {
         selectedShotId={selected}
         drop={null}
         onPress={play.actions.onMapPress}
+        editHandles={
+          selectedShot
+            ? {
+                start: selectedShot.start,
+                end: selectedShot.holed ? null : selectedShot.end,
+                onDragEnd: (which, p) => void play.actions.moveShot(selectedShot.id, which, p),
+              }
+            : null
+        }
         onShotPress={(sid) => {
           setSelected(sid);
           setExpanded(true);
@@ -377,6 +394,8 @@ function Play(props: {
         </Pressable>
         <Pressable
           style={styles.fab}
+          testID="play-scorecard"
+          accessibilityLabel="Scorecard"
           onPress={() =>
             router.push({ pathname: '/round/[id]/scorecard', params: { id: round.id } })
           }
