@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { refitClubs } from '@/lib/sim/functions';
+import { Button } from '@/components/primitives/Button';
 
 /** Calls the `refit` Edge Function for the given clubs (all when omitted), then reloads. */
 export function RefitButton({
@@ -18,8 +19,7 @@ export function RefitButton({
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   return (
     <div className="flex flex-col items-end gap-1">
-      <button
-        className="btn px-4 py-2"
+      <Button
         disabled={busy}
         onClick={async () => {
           setBusy(true);
@@ -33,9 +33,12 @@ export function RefitButton({
         }}
       >
         {busy ? 'Refitting…' : label}
-      </button>
+      </Button>
       {message ? (
-        <p className={`max-w-xs text-right text-xs ${message.ok ? 'text-muted' : 'text-danger'}`}>
+        <p
+          role={message.ok ? 'status' : 'alert'}
+          className={`max-w-xs text-right text-xs ${message.ok ? 'text-muted' : 'text-danger'}`}
+        >
           {message.text}
         </p>
       ) : null}

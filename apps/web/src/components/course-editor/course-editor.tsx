@@ -20,6 +20,7 @@ import {
 import { publishCourse, saveDraft, type Db } from '@/lib/courses/repo';
 import { isPointKind, type CourseDoc, type CourseVersionDoc } from '@/lib/courses/types';
 import { EditorMap, type DrawSession, type EditorMapHandle } from './editor-map';
+import { DesktopOnlyNotice } from '@/components/primitives/DesktopOnlyNotice';
 import { HolePanel } from './hole-panel';
 import type { HiddenKey } from './map-style';
 import { EDIT_PROMPT, PROMPTS, type DrawTarget, type StartDraw } from './targets';
@@ -233,274 +234,278 @@ export function CourseEditor({ initial, readOnly = false }: Props) {
   const drawing = active !== null;
 
   return (
-    <div className="flex h-dvh flex-col">
-      <header className="flex items-center gap-3 border-b border-border bg-bg-elevated px-4 py-2">
-        <Link href="/courses" className="link text-sm">
-          ← Courses
-        </Link>
-        <h1 className="truncate text-lg font-bold">{meta.name}</h1>
-        <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-          {readOnly
-            ? `v${initial.version}`
-            : course.status === 'published'
-              ? `draft · published v${course.current_version}`
-              : 'draft · never published'}
-        </span>
-        {dirty ? <span className="text-xs text-muted">Unsaved changes</span> : null}
-        <div className="ml-auto flex items-center gap-2">
-          {message ? (
-            <span className={`text-sm ${message.kind === 'error' ? 'text-danger' : 'text-accent'}`}>
-              {message.text}
-            </span>
-          ) : null}
-          {readOnly && course.can_write ? (
-            <Link href={`/courses/${course.course_id}/edit`} className="btn px-4 py-2 text-sm">
-              Edit
-            </Link>
-          ) : null}
-          {canWrite ? (
-            <>
-              <button
-                type="button"
-                className="cm-btn-sm px-4 py-2"
-                disabled={!dirty || busy !== null || drawing}
-                onClick={() => void save()}
+    <>
+      <DesktopOnlyNotice what={readOnly ? 'The course map' : 'The course editor'} />
+      <div className="workspace-fill hide-sm flex flex-col">
+        <header className="flex flex-wrap items-center gap-3 border-b border-border bg-bg-elevated px-4 py-2">
+          <h1 className="truncate text-lg font-bold">{meta.name}</h1>
+          <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
+            {readOnly
+              ? `v${initial.version}`
+              : course.status === 'published'
+                ? `draft · published v${course.current_version}`
+                : 'draft · never published'}
+          </span>
+          {dirty ? <span className="text-xs text-muted">Unsaved changes</span> : null}
+          <div className="ml-auto flex items-center gap-2">
+            {message ? (
+              <span
+                className={`text-sm ${message.kind === 'error' ? 'text-danger' : 'text-accent'}`}
               >
-                {busy === 'saving' ? 'Saving…' : 'Save draft'}
-              </button>
-              <button
-                type="button"
-                className="btn px-4 py-2 text-sm"
-                disabled={busy !== null || drawing || errors.length > 0 || doc.holes.length === 0}
-                onClick={() => void publish()}
-              >
-                {busy === 'publishing' ? 'Publishing…' : 'Publish'}
-              </button>
-            </>
-          ) : null}
-        </div>
-      </header>
+                {message.text}
+              </span>
+            ) : null}
+            {readOnly && course.can_write ? (
+              <Link href={`/courses/${course.course_id}/edit`} className="btn px-4 py-2 text-sm">
+                Edit
+              </Link>
+            ) : null}
+            {canWrite ? (
+              <>
+                <button
+                  type="button"
+                  className="cm-btn-sm px-4 py-2"
+                  disabled={!dirty || busy !== null || drawing}
+                  onClick={() => void save()}
+                >
+                  {busy === 'saving' ? 'Saving…' : 'Save draft'}
+                </button>
+                <button
+                  type="button"
+                  className="btn px-4 py-2 text-sm"
+                  disabled={busy !== null || drawing || errors.length > 0 || doc.holes.length === 0}
+                  onClick={() => void publish()}
+                >
+                  {busy === 'publishing' ? 'Publishing…' : 'Publish'}
+                </button>
+              </>
+            ) : null}
+          </div>
+        </header>
 
-      <div className="flex min-h-0 flex-1">
-        <aside className="flex w-[380px] shrink-0 flex-col border-r border-border bg-bg">
-          <nav className="flex border-b border-border text-sm">
-            {(
-              [
-                ['holes', `Holes (${doc.holes.length})`],
-                ['tees', `Tee sets (${doc.tee_sets.length})`],
-                ['course', 'Course'],
-                ['issues', `Issues (${issues.length})`],
-              ] as const
-            ).map(([id, text]) => (
-              <button
-                key={id}
-                type="button"
-                className={`flex-1 px-2 py-2.5 ${tab === id ? 'border-b-2 border-accent font-semibold' : 'text-muted'}`}
-                onClick={() => setTab(id)}
-              >
-                {text}
-              </button>
-            ))}
-          </nav>
+        <div className="flex min-h-0 flex-1">
+          <aside className="flex w-[380px] shrink-0 flex-col border-r border-border bg-bg">
+            <nav className="flex border-b border-border text-sm">
+              {(
+                [
+                  ['holes', `Holes (${doc.holes.length})`],
+                  ['tees', `Tee sets (${doc.tee_sets.length})`],
+                  ['course', 'Course'],
+                  ['issues', `Issues (${issues.length})`],
+                ] as const
+              ).map(([id, text]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`flex-1 px-2 py-2.5 ${tab === id ? 'border-b-2 border-accent font-semibold' : 'text-muted'}`}
+                  onClick={() => setTab(id)}
+                >
+                  {text}
+                </button>
+              ))}
+            </nav>
 
-          <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-4">
-            <fieldset disabled={drawing} className="min-w-0 space-y-4">
-              {tab === 'holes' ? (
-                <>
-                  <div className="flex flex-wrap gap-1.5">
-                    {doc.holes.map((h) => (
-                      <button
-                        key={h.hole_id}
-                        type="button"
-                        className={`h-9 w-9 rounded-lg text-sm font-bold ${
-                          h.hole_id === selectedHoleId
-                            ? 'bg-accent text-accent-text'
-                            : 'border border-border bg-surface'
-                        }`}
-                        onClick={() => selectHole(h.hole_id)}
-                      >
-                        {h.hole_number}
-                      </button>
-                    ))}
-                    {canWrite ? (
-                      <button
-                        type="button"
-                        className="h-9 rounded-lg border border-dashed border-border px-3 text-sm text-muted"
-                        onClick={() => {
-                          const id = newId();
-                          change((d) => addHole(d, () => id).doc);
-                          setSelectedHoleId(id);
-                          setSelectedFeatureId(null);
-                        }}
-                      >
-                        + Hole
-                      </button>
-                    ) : null}
-                  </div>
-                  {hole ? (
-                    <div className="card !p-4">
-                      <HolePanel
-                        doc={doc}
-                        hole={hole}
-                        readOnly={!canWrite}
-                        selectedFeatureId={selectedFeatureId}
-                        change={change}
-                        startDraw={startDraw}
-                        onSelectFeature={setSelectedFeatureId}
-                        onDeleteHole={() => {
-                          if (!window.confirm(`Delete hole ${hole.hole_number} and its features?`))
-                            return;
-                          change((d) => removeHole(d, hole.hole_id));
-                          setSelectedHoleId(null);
+            <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-4">
+              <fieldset disabled={drawing} className="min-w-0 space-y-4">
+                {tab === 'holes' ? (
+                  <>
+                    <div className="flex flex-wrap gap-1.5">
+                      {doc.holes.map((h) => (
+                        <button
+                          key={h.hole_id}
+                          type="button"
+                          className={`h-9 w-9 rounded-lg text-sm font-bold ${
+                            h.hole_id === selectedHoleId
+                              ? 'bg-accent text-accent-text'
+                              : 'border border-border bg-surface'
+                          }`}
+                          onClick={() => selectHole(h.hole_id)}
+                        >
+                          {h.hole_number}
+                        </button>
+                      ))}
+                      {canWrite ? (
+                        <button
+                          type="button"
+                          className="h-9 rounded-lg border border-dashed border-border px-3 text-sm text-muted"
+                          onClick={() => {
+                            const id = newId();
+                            change((d) => addHole(d, () => id).doc);
+                            setSelectedHoleId(id);
+                            setSelectedFeatureId(null);
+                          }}
+                        >
+                          + Hole
+                        </button>
+                      ) : null}
+                    </div>
+                    {hole ? (
+                      <div className="card !p-4">
+                        <HolePanel
+                          doc={doc}
+                          hole={hole}
+                          readOnly={!canWrite}
+                          selectedFeatureId={selectedFeatureId}
+                          change={change}
+                          startDraw={startDraw}
+                          onSelectFeature={setSelectedFeatureId}
+                          onDeleteHole={() => {
+                            if (
+                              !window.confirm(`Delete hole ${hole.hole_number} and its features?`)
+                            )
+                              return;
+                            change((d) => removeHole(d, hole.hole_id));
+                            setSelectedHoleId(null);
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-muted text-sm">
+                        {doc.holes.length === 0
+                          ? 'No holes yet. Add one, then draw its line of play and green.'
+                          : 'Select a hole.'}
+                      </p>
+                    )}
+                  </>
+                ) : null}
+
+                {tab === 'tees' ? (
+                  <TeeSetsPanel doc={doc} readOnly={!canWrite} change={change} newId={newId} />
+                ) : null}
+
+                {tab === 'course' ? (
+                  <div className="space-y-3">
+                    <label className="block">
+                      <span className="cm-label">Name</span>
+                      <input
+                        className="cm-field"
+                        disabled={!canWrite}
+                        value={meta.name}
+                        onChange={(e) => {
+                          setMeta((m) => ({ ...m, name: e.target.value }));
+                          setDirty(true);
                         }}
                       />
+                    </label>
+                    <label className="block">
+                      <span className="cm-label">Country (ISO 3166-1 alpha-2)</span>
+                      <input
+                        className="cm-field uppercase"
+                        maxLength={2}
+                        disabled={!canWrite}
+                        value={meta.country}
+                        onChange={(e) => {
+                          setMeta((m) => ({ ...m, country: e.target.value.toUpperCase() }));
+                          setDirty(true);
+                        }}
+                      />
+                    </label>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="flex-1 text-muted">
+                        Centre {meta.centroid.coordinates[1]!.toFixed(5)},{' '}
+                        {meta.centroid.coordinates[0]!.toFixed(5)}
+                      </span>
+                      {canWrite ? (
+                        <button
+                          type="button"
+                          className="cm-btn-sm"
+                          onClick={() => startDraw({ t: 'courseCentre' })}
+                        >
+                          Move
+                        </button>
+                      ) : null}
                     </div>
-                  ) : (
-                    <p className="text-muted text-sm">
-                      {doc.holes.length === 0
-                        ? 'No holes yet. Add one, then draw its line of play and green.'
-                        : 'Select a hole.'}
-                    </p>
-                  )}
-                </>
-              ) : null}
-
-              {tab === 'tees' ? (
-                <TeeSetsPanel doc={doc} readOnly={!canWrite} change={change} newId={newId} />
-              ) : null}
-
-              {tab === 'course' ? (
-                <div className="space-y-3">
-                  <label className="block">
-                    <span className="cm-label">Name</span>
-                    <input
-                      className="cm-field"
-                      disabled={!canWrite}
-                      value={meta.name}
-                      onChange={(e) => {
-                        setMeta((m) => ({ ...m, name: e.target.value }));
-                        setDirty(true);
-                      }}
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="cm-label">Country (ISO 3166-1 alpha-2)</span>
-                    <input
-                      className="cm-field uppercase"
-                      maxLength={2}
-                      disabled={!canWrite}
-                      value={meta.country}
-                      onChange={(e) => {
-                        setMeta((m) => ({ ...m, country: e.target.value.toUpperCase() }));
-                        setDirty(true);
-                      }}
-                    />
-                  </label>
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="flex-1 text-muted">
-                      Centre {meta.centroid.coordinates[1]!.toFixed(5)},{' '}
-                      {meta.centroid.coordinates[0]!.toFixed(5)}
-                    </span>
-                    {canWrite ? (
-                      <button
-                        type="button"
-                        className="cm-btn-sm"
-                        onClick={() => startDraw({ t: 'courseCentre' })}
-                      >
-                        Move
-                      </button>
+                    <dl className="text-muted grid grid-cols-2 gap-1 text-sm">
+                      <dt>Source</dt>
+                      <dd>{course.source}</dd>
+                      {course.osm_relation_id ? (
+                        <>
+                          <dt>OSM</dt>
+                          <dd>{course.osm_relation_id}</dd>
+                        </>
+                      ) : null}
+                      <dt>Published version</dt>
+                      <dd>{course.current_version || '—'}</dd>
+                    </dl>
+                    {course.current_version > 0 && !readOnly ? (
+                      <Link href={`/courses/${course.course_id}`} className="link text-sm">
+                        View published version
+                      </Link>
                     ) : null}
+                    <button
+                      type="button"
+                      className="cm-btn-sm"
+                      onClick={() => mapRef.current?.fitAll()}
+                    >
+                      Zoom to course
+                    </button>
                   </div>
-                  <dl className="text-muted grid grid-cols-2 gap-1 text-sm">
-                    <dt>Source</dt>
-                    <dd>{course.source}</dd>
-                    {course.osm_relation_id ? (
-                      <>
-                        <dt>OSM</dt>
-                        <dd>{course.osm_relation_id}</dd>
-                      </>
-                    ) : null}
-                    <dt>Published version</dt>
-                    <dd>{course.current_version || '—'}</dd>
-                  </dl>
-                  {course.current_version > 0 && !readOnly ? (
-                    <Link href={`/courses/${course.course_id}`} className="link text-sm">
-                      View published version
-                    </Link>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="cm-btn-sm"
-                    onClick={() => mapRef.current?.fitAll()}
-                  >
-                    Zoom to course
-                  </button>
-                </div>
-              ) : null}
+                ) : null}
 
-              {tab === 'issues' ? (
-                issues.length === 0 ? (
-                  <p className="text-muted text-sm">No issues.</p>
-                ) : (
-                  <ul className="space-y-1.5 text-sm">
-                    {issues.map((i, n) => (
-                      <li key={n} className={i.level === 'error' ? 'text-danger' : 'text-muted'}>
-                        {i.level === 'error' ? '✖' : '•'} {i.message}
-                      </li>
-                    ))}
-                  </ul>
-                )
-              ) : null}
-            </fieldset>
-          </div>
-        </aside>
-
-        <main className="relative min-w-0 flex-1">
-          <EditorMap
-            ref={mapRef}
-            className="absolute inset-0"
-            doc={doc}
-            centre={{ lat: meta.centroid.coordinates[1]!, lng: meta.centroid.coordinates[0]! }}
-            boundary={course.boundary_polygon}
-            selectedHoleId={selectedHoleId}
-            selectedFeatureId={selectedFeatureId}
-            hidden={active?.hidden ?? null}
-            session={active?.session ?? null}
-            onDrawn={onDrawn}
-            onDrawCancelled={() => setActive(null)}
-            onSelectHole={selectHole}
-            onSelectFeature={(featureId, holeId) => {
-              setSelectedHoleId(holeId);
-              setSelectedFeatureId(featureId);
-              setTab('holes');
-            }}
-          />
-          {active ? (
-            <div className="card absolute top-3 left-1/2 z-10 flex w-[min(640px,90%)] -translate-x-1/2 items-center gap-3 !p-3 shadow-xl">
-              <p className="flex-1 text-sm">
-                {active.session.mode === 'edit' ? EDIT_PROMPT : PROMPTS[active.target.t]}
-              </p>
-              {active.session.mode === 'edit' ? (
-                <>
-                  <button
-                    type="button"
-                    className="cm-btn-sm"
-                    onClick={() => mapRef.current?.trash()}
-                  >
-                    Delete vertex
-                  </button>
-                  <button type="button" className="btn px-3 py-1.5 text-sm" onClick={finishEdit}>
-                    Done
-                  </button>
-                </>
-              ) : null}
-              <button type="button" className="cm-btn-sm" onClick={() => setActive(null)}>
-                Cancel
-              </button>
+                {tab === 'issues' ? (
+                  issues.length === 0 ? (
+                    <p className="text-muted text-sm">No issues.</p>
+                  ) : (
+                    <ul className="space-y-1.5 text-sm">
+                      {issues.map((i, n) => (
+                        <li key={n} className={i.level === 'error' ? 'text-danger' : 'text-muted'}>
+                          {i.level === 'error' ? '✖' : '•'} {i.message}
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                ) : null}
+              </fieldset>
             </div>
-          ) : null}
-        </main>
+          </aside>
+
+          <div className="relative min-w-0 flex-1">
+            <EditorMap
+              ref={mapRef}
+              className="absolute inset-0"
+              doc={doc}
+              centre={{ lat: meta.centroid.coordinates[1]!, lng: meta.centroid.coordinates[0]! }}
+              boundary={course.boundary_polygon}
+              selectedHoleId={selectedHoleId}
+              selectedFeatureId={selectedFeatureId}
+              hidden={active?.hidden ?? null}
+              session={active?.session ?? null}
+              onDrawn={onDrawn}
+              onDrawCancelled={() => setActive(null)}
+              onSelectHole={selectHole}
+              onSelectFeature={(featureId, holeId) => {
+                setSelectedHoleId(holeId);
+                setSelectedFeatureId(featureId);
+                setTab('holes');
+              }}
+            />
+            {active ? (
+              <div className="card absolute top-3 left-1/2 z-10 flex w-[min(640px,90%)] -translate-x-1/2 items-center gap-3 !p-3 shadow-xl">
+                <p className="flex-1 text-sm">
+                  {active.session.mode === 'edit' ? EDIT_PROMPT : PROMPTS[active.target.t]}
+                </p>
+                {active.session.mode === 'edit' ? (
+                  <>
+                    <button
+                      type="button"
+                      className="cm-btn-sm"
+                      onClick={() => mapRef.current?.trash()}
+                    >
+                      Delete vertex
+                    </button>
+                    <button type="button" className="btn px-3 py-1.5 text-sm" onClick={finishEdit}>
+                      Done
+                    </button>
+                  </>
+                ) : null}
+                <button type="button" className="cm-btn-sm" onClick={() => setActive(null)}>
+                  Cancel
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

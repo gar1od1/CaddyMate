@@ -10,11 +10,14 @@ const toParClass = (strokes: number | null, par: number) =>
         ? 'text-danger'
         : '';
 
-/** Hole-by-hole card with out/in/total (§5.7). */
+/**
+ * Hole-by-hole card with out/in/total (§5.7). A fixed grid with totals, not a
+ * table of records, so it is exempt from header filters (web-ui.md §4.1).
+ */
 export function Scorecard({ table }: { table: ScorecardTable }) {
   const cols = ['Hole', 'Yds', 'Par', 'SI', 'Score', 'Putts', 'Pen', 'Net', 'Pts', 'SG'];
   return (
-    <div className="overflow-x-auto">
+    <div className="table-scroll" role="region" aria-label="Scorecard" tabIndex={0}>
       <table className="w-full text-sm" style={{ fontVariantNumeric: 'tabular-nums' }}>
         <thead className="text-muted text-xs uppercase">
           <tr className="border-b border-border">

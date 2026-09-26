@@ -1,8 +1,16 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { listClubPatterns, listClubs, type Db } from '@caddymate/api';
 import { createClient } from '@/lib/supabase/server';
+import { metresToYards } from '@caddymate/engine';
 import { fmtDate, yds } from '@/lib/review/format';
+import { ButtonLink } from '@/components/primitives/Button';
+import { Card } from '@/components/primitives/Card';
+import {
+  FilterableTable,
+  type FilterableColumn,
+  type FilterableRow,
+} from '@/components/primitives/FilterableTable';
+import { Page, PageHeader } from '@/components/primitives/Page';
 import { RefitButton } from './refit-button';
 
 export const metadata = { title: 'Clubs · CaddyMate' };
@@ -33,75 +41,67 @@ export default async function ClubsPage() {
     counts.set(s.club_id!, c);
   }
 
+  const columns: FilterableColumn[] = [
+    { key: 'club', label: 'Club' },
+    { key: 'mean', label: 'Mean yds', filter: 'number', align: 'right' },
+    { key: 'bias', label: 'Bias yds', filter: 'number', align: 'right', title: 'Negative is left' },
+    { key: 'sim', label: 'Sim shots', filter: 'number', align: 'right' },
+    { key: 'course', label: 'Course shots', filter: 'number', align: 'right' },
+    { key: 'neff', label: 'n eff.', filter: 'number', align: 'right' },
+    { key: 'confidence', label: 'Confidence' },
+    { key: 'fitted', label: 'Fitted', filter: 'date' },
+  ];
+  const rows: FilterableRow[] = clubs.map((c) => {
+    const p = byClub.get(c.id);
+    const n = counts.get(c.id) ?? { sim: 0, course: 0 };
+    const bias = p?.params.lateral.mean ?? null;
+    const mean = p?.params.distance.mean ?? null;
+    return {
+      key: c.id,
+      tone: c.active ? undefined : 'muted',
+      cells: {
+        club: { text: c.name, href: c.kind === 'putter' ? undefined : `/clubs/${c.id}` },
+        mean: { text: yds(mean), sortValue: mean === null ? null : metresToYards(mean) },
+        bias: {
+          text:
+            bias === null ? '—' : `${yds(Math.abs(bias))} ${bias < 0 ? 'L' : bias > 0 ? 'R' : ''}`,
+          // Signed yards, so "at most -2" finds the clubs that miss left.
+          sortValue: bias === null ? null : metresToYards(bias),
+        },
+        sim: { text: String(n.sim), sortValue: n.sim },
+        course: { text: String(n.course), sortValue: n.course },
+        neff: { text: p ? p.nEffective.toFixed(1) : '—', sortValue: p?.nEffective ?? null },
+        confidence: { text: p?.confidence ?? (c.kind === 'putter' ? '—' : 'no pattern') },
+        fitted: {
+          text: p ? fmtDate(p.fittedAt) : '—',
+          sortValue: p?.fittedAt ?? null,
+          tone: 'muted',
+        },
+      },
+    };
+  });
+
   return (
-    <main className="mx-auto w-full max-w-4xl space-y-6 p-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <Link href="/" className="link text-sm">
-            ← Home
-          </Link>
-          <h1 className="text-2xl font-bold">Club dispersion</h1>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link href="/import" className="link text-sm">
-            Import sim session
-          </Link>
-          <RefitButton label="Refit all" />
-        </div>
-      </header>
-      <section className="card overflow-x-auto p-0">
-        {clubs.length === 0 ? (
-          <p className="text-muted p-6 text-sm">No clubs yet. Set up your bag in the app.</p>
-        ) : (
-          <table className="w-full text-sm" style={{ fontVariantNumeric: 'tabular-nums' }}>
-            <thead className="text-muted text-left text-xs uppercase">
-              <tr className="border-b border-border">
-                <th className="px-4 py-3 font-medium">Club</th>
-                <th className="px-4 py-3 text-right font-medium">Mean yds</th>
-                <th className="px-4 py-3 text-right font-medium">Bias yds</th>
-                <th className="px-4 py-3 text-right font-medium">Shots (sim / course)</th>
-                <th className="px-4 py-3 text-right font-medium">n eff.</th>
-                <th className="px-4 py-3 font-medium">Confidence</th>
-                <th className="px-4 py-3 font-medium">Fitted</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {clubs.map((c) => {
-                const p = byClub.get(c.id);
-                const n = counts.get(c.id) ?? { sim: 0, course: 0 };
-                const bias = p?.params.lateral.mean ?? null;
-                return (
-                  <tr key={c.id} className={c.active ? '' : 'text-muted'}>
-                    <td className="px-4 py-3">
-                      {c.kind === 'putter' ? (
-                        c.name
-                      ) : (
-                        <Link href={`/clubs/${c.id}`} className="font-semibold hover:underline">
-                          {c.name}
-                        </Link>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">{yds(p?.params.distance.mean ?? null)}</td>
-                    <td className="px-4 py-3 text-right">
-                      {bias === null
-                        ? '—'
-                        : `${yds(Math.abs(bias))} ${bias < 0 ? 'L' : bias > 0 ? 'R' : ''}`}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {n.sim} / {n.course}
-                    </td>
-                    <td className="px-4 py-3 text-right">{p ? p.nEffective.toFixed(1) : '—'}</td>
-                    <td className="px-4 py-3">
-                      {p?.confidence ?? (c.kind === 'putter' ? '—' : 'no pattern')}
-                    </td>
-                    <td className="text-muted px-4 py-3">{p ? fmtDate(p.fittedAt) : '—'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </main>
+    <Page>
+      <PageHeader
+        title="Club dispersion"
+        actions={
+          <>
+            <ButtonLink href="/import" variant="secondary">
+              Import sim session
+            </ButtonLink>
+            <RefitButton label="Refit all" />
+          </>
+        }
+      />
+      <Card>
+        <FilterableTable
+          label="Clubs"
+          columns={columns}
+          rows={rows}
+          emptyMessage="No clubs yet. Set up your bag in the app."
+        />
+      </Card>
+    </Page>
   );
 }

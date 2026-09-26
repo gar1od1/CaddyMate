@@ -1,9 +1,15 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import type { Db } from '@caddymate/api';
 import { createClient } from '@/lib/supabase/server';
 import { listRoundRows, selectInChunks } from '@/lib/review/data';
 import { fmtDate, sgText } from '@/lib/review/format';
+import { Card } from '@/components/primitives/Card';
+import {
+  FilterableTable,
+  type FilterableColumn,
+  type FilterableRow,
+} from '@/components/primitives/FilterableTable';
+import { Page, PageHeader } from '@/components/primitives/Page';
 
 export const metadata = { title: 'Rounds · CaddyMate' };
 
@@ -37,74 +43,54 @@ export default async function ReviewPage() {
     );
   }
 
-  return (
-    <main className="mx-auto w-full max-w-4xl space-y-6 p-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <Link href="/" className="link text-sm">
-            ← Home
-          </Link>
-          <h1 className="text-2xl font-bold">Rounds</h1>
-        </div>
-        <nav className="flex gap-4 text-sm">
-          <Link href="/review/trends" className="link">
-            Trends &amp; handicap
-          </Link>
-          <Link href="/clubs" className="link">
-            Club dispersion
-          </Link>
-        </nav>
-      </header>
+  const columns: FilterableColumn[] = [
+    { key: 'date', label: 'Date', filter: 'date', phone: 'title' },
+    { key: 'course', label: 'Course' },
+    { key: 'gross', label: 'Gross', filter: 'number', align: 'right' },
+    { key: 'net', label: 'Net', filter: 'number', align: 'right' },
+    { key: 'points', label: 'Points', filter: 'number', align: 'right' },
+    { key: 'sg', label: 'SG total', filter: 'number', align: 'right' },
+    { key: 'status', label: 'Status' },
+  ];
+  const rows: FilterableRow[] = rounds.map((r) => {
+    const sg = sgByRound.get(r.round_id);
+    const net = netByRound.get(r.round_id) ?? null;
+    return {
+      key: r.round_id,
+      cells: {
+        date: {
+          text: fmtDate(r.started_at),
+          href: `/review/${r.round_id}`,
+          sortValue: r.started_at,
+        },
+        course: { text: r.courses?.name ?? '—' },
+        gross: { text: r.gross === null ? '—' : String(r.gross), sortValue: r.gross },
+        net: { text: net === null ? '—' : String(net), sortValue: net },
+        points: {
+          text: r.stableford === null ? '—' : String(r.stableford),
+          sortValue: r.stableford,
+        },
+        sg:
+          sg === undefined
+            ? { text: 'not graded', tone: 'muted' }
+            : { text: sgText(sg), sortValue: sg },
+        status: { text: r.status, tone: 'muted' },
+      },
+    };
+  });
 
-      <section className="card overflow-x-auto p-0">
-        {rounds.length === 0 ? (
-          <p className="text-muted p-6 text-sm">No rounds yet. Play one in the app.</p>
-        ) : (
-          <table className="w-full text-sm" style={{ fontVariantNumeric: 'tabular-nums' }}>
-            <thead className="text-muted text-left text-xs uppercase">
-              <tr className="border-b border-border">
-                <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium">Course</th>
-                <th className="px-4 py-3 text-right font-medium">Gross</th>
-                <th className="px-4 py-3 text-right font-medium">Net</th>
-                <th className="px-4 py-3 text-right font-medium">Points</th>
-                <th className="px-4 py-3 text-right font-medium">SG total</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {rounds.map((r) => {
-                const sg = sgByRound.get(r.round_id);
-                const net = netByRound.get(r.round_id) ?? null;
-                return (
-                  <tr key={r.round_id} className="hover:bg-bg-elevated">
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/review/${r.round_id}`}
-                        className="font-semibold hover:underline"
-                      >
-                        {fmtDate(r.started_at)}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3">{r.courses?.name ?? '—'}</td>
-                    <td className="px-4 py-3 text-right">{r.gross ?? '—'}</td>
-                    <td className="px-4 py-3 text-right">{net ?? '—'}</td>
-                    <td className="px-4 py-3 text-right">{r.stableford ?? '—'}</td>
-                    <td className="px-4 py-3 text-right">
-                      {sg === undefined ? (
-                        <span className="text-muted">not graded</span>
-                      ) : (
-                        sgText(sg)
-                      )}
-                    </td>
-                    <td className="text-muted px-4 py-3">{r.status}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </main>
+  return (
+    <Page>
+      <PageHeader title="Rounds" description="Every round you have played, newest first." />
+      <Card>
+        <FilterableTable
+          label="Rounds"
+          columns={columns}
+          rows={rows}
+          phoneLayout="cards"
+          emptyMessage="No rounds yet. Play one in the app."
+        />
+      </Card>
+    </Page>
   );
 }

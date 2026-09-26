@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import type { Db } from '@caddymate/api';
 import { createClient } from '@/lib/supabase/server';
@@ -10,6 +9,8 @@ import { Decisions } from '@/components/review/decisions';
 import { Replay, type ReplayHole } from '@/components/review/replay';
 import { Scorecard } from '@/components/review/scorecard';
 import { StrokesGained } from '@/components/review/strokes-gained';
+import { Card } from '@/components/primitives/Card';
+import { Page, PageHeader } from '@/components/primitives/Page';
 
 export const metadata = { title: 'Round review · CaddyMate' };
 
@@ -66,37 +67,33 @@ export default async function RoundReviewPage({
   );
 
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-6 p-6">
-      <header className="space-y-3">
-        <Link href="/review" className="link text-sm">
-          ← Rounds
-        </Link>
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">{course?.course.name ?? 'Round'}</h1>
-            <p className="text-muted text-sm">
-              {fmtDate(round.startedAt)}
-              {teeSet ? ` · ${teeSet.name} tees` : ''}
-              {teeSet?.courseRating != null && teeSet.slopeRating != null
-                ? ` (${String(teeSet.courseRating)} / ${String(teeSet.slopeRating)})`
-                : ''}
-              {round.handicapIndexUsed != null ? ` · HI ${String(round.handicapIndexUsed)}` : ''}
-              {round.playingHandicap != null ? ` · PH ${String(round.playingHandicap)}` : ''}
-              {` · ${round.status}`}
-            </p>
-          </div>
-          <div className="card flex gap-8 px-5 py-3">
+    <Page width="wide">
+      <PageHeader
+        title={course?.course.name ?? 'Round'}
+        description={
+          <>
+            {fmtDate(round.startedAt)}
+            {teeSet ? ` · ${teeSet.name} tees` : ''}
+            {teeSet?.courseRating != null && teeSet.slopeRating != null
+              ? ` (${String(teeSet.courseRating)} / ${String(teeSet.slopeRating)})`
+              : ''}
+            {round.handicapIndexUsed != null ? ` · HI ${String(round.handicapIndexUsed)}` : ''}
+            {round.playingHandicap != null ? ` · PH ${String(round.playingHandicap)}` : ''}
+            {` · ${round.status}`}
+          </>
+        }
+        actions={
+          <div className="card flex flex-wrap gap-x-8 gap-y-3 px-5 py-3">
             {stat('Gross', round.gross)}
             {stat('Net', net)}
             {stat('Points', round.stableford)}
             {stat('Differential', round.differential)}
             {stat('SG total', sg ? sgText(sg.total) : null)}
           </div>
-        </div>
-      </header>
+        }
+      />
 
-      <section className="card space-y-3">
-        <h2 className="text-lg font-semibold">Replay</h2>
+      <Card title="Replay">
         {shots.length === 0 ? (
           <p className="text-muted text-sm">No shots were logged in this round.</p>
         ) : (
@@ -108,30 +105,26 @@ export default async function RoundReviewPage({
             pins={round.pinOverrides}
           />
         )}
-      </section>
+      </Card>
 
       {graded ? (
         <>
-          <section className="card space-y-3">
-            <h2 className="text-lg font-semibold">Decisions</h2>
+          <Card title="Decisions">
             <Decisions shots={shots} clubNames={clubNames} />
-          </section>
-          <section className="card space-y-3">
-            <h2 className="text-lg font-semibold">Strokes gained</h2>
+          </Card>
+          <Card title="Strokes gained">
             <StrokesGained shots={shots} clubNames={clubNames} />
-          </section>
+          </Card>
         </>
       ) : (
-        <section className="card">
-          <h2 className="text-lg font-semibold">Decisions &amp; strokes gained</h2>
-          <p className="text-muted mt-1 text-sm">Not graded yet — finish the round in the app.</p>
-        </section>
+        <Card title="Decisions and strokes gained">
+          <p className="text-muted text-sm">Not graded yet — finish the round in the app.</p>
+        </Card>
       )}
 
-      <section className="card space-y-3">
-        <h2 className="text-lg font-semibold">Scorecard</h2>
+      <Card title="Scorecard">
         <Scorecard table={table} />
-      </section>
-    </main>
+      </Card>
+    </Page>
   );
 }

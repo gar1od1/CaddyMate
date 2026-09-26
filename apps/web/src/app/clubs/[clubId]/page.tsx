@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import {
   PATTERN_SHOT_COLUMNS,
@@ -21,6 +20,13 @@ import {
   scatterPoints,
 } from '@/lib/review/dispersion';
 import { fmtDate, pctText, yds } from '@/lib/review/format';
+import { Card } from '@/components/primitives/Card';
+import {
+  FilterableTable,
+  type FilterableColumn,
+  type FilterableRow,
+} from '@/components/primitives/FilterableTable';
+import { Page, PageHeader } from '@/components/primitives/Page';
 import { RefitButton } from '../refit-button';
 
 export const metadata = { title: 'Club dispersion · CaddyMate' };
@@ -73,24 +79,57 @@ export default async function ClubPage({ params }: { params: Promise<{ clubId: s
   const courseN = points.length - simN;
   const yd = (m: number) => `${yds(m)}`;
 
+  const bucketColumns: FilterableColumn[] = [
+    { key: 'lie', label: 'Lie' },
+    { key: 'head', label: 'Head wind (m/s)' },
+    { key: 'cross', label: 'Cross wind (m/s)' },
+    { key: 'neff', label: 'n eff.', filter: 'number', align: 'right' },
+    { key: 'mean', label: 'Mean yds', filter: 'number', align: 'right' },
+    { key: 'bias', label: 'Bias', filter: 'number', align: 'right', title: 'Negative is left' },
+    { key: 'sd', label: 'SD L / R', filter: false, sort: false, align: 'right' },
+  ];
+  const bucketRows: FilterableRow[] = buckets
+    .sort((a, b) => b.nEffective - a.nEffective)
+    .map((b) => {
+      const l = bucketLabel(b.bucketKey);
+      const bias = b.params.lateral.mean;
+      return {
+        key: b.bucketKey,
+        cells: {
+          lie: { text: l.lie },
+          head: { text: l.head },
+          cross: { text: l.cross },
+          neff: { text: b.nEffective.toFixed(1), sortValue: b.nEffective },
+          mean: {
+            text: yds(b.params.distance.mean),
+            sortValue: metresToYards(b.params.distance.mean),
+          },
+          bias: {
+            text: `${yds(Math.abs(bias), 1)} ${bias < 0 ? 'L' : bias > 0 ? 'R' : ''}`,
+            sortValue: metresToYards(bias),
+          },
+          sd: {
+            text: `${yds(b.params.lateral.sd_left, 1)} / ${yds(b.params.lateral.sd_right, 1)}`,
+          },
+        },
+      };
+    });
+
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-6 p-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <Link href="/clubs" className="link text-sm">
-            ← Clubs
-          </Link>
-          <h1 className="text-2xl font-bold">{club.name}</h1>
-          <p className="text-muted text-sm">
+    <Page>
+      <PageHeader
+        title={club.name}
+        description={
+          <>
             {club.kind}
             {club.loftDeg !== null ? ` · ${String(club.loftDeg)}°` : ''}
             {stored
               ? ` · fitted ${fmtDate(stored.fittedAt)} (engine v${String(stored.engineVersion)})`
               : ' · no stored pattern — showing the seeded prior'}
-          </p>
-        </div>
-        {club.kind !== 'putter' ? <RefitButton clubIds={[club.id]} /> : null}
-      </header>
+          </>
+        }
+        actions={club.kind !== 'putter' ? <RefitButton clubIds={[club.id]} /> : null}
+      />
 
       {pattern ? (
         <section className="grid gap-6 lg:grid-cols-[1fr_300px]">
@@ -174,53 +213,15 @@ export default async function ClubPage({ params }: { params: Promise<{ clubId: s
         <p className="text-muted card text-sm">Putters have no dispersion pattern.</p>
       )}
 
-      <section className="card space-y-3">
-        <h2 className="font-semibold">Condition buckets (observed, ≥ 15 effective shots)</h2>
-        {buckets.length === 0 ? (
-          <p className="text-muted text-sm">
-            No condition bucket has enough shots yet; on course the pattern is estimated from the
-            neutral fit.
-          </p>
-        ) : (
-          <table className="w-full text-sm" style={{ fontVariantNumeric: 'tabular-nums' }}>
-            <thead className="text-muted text-xs uppercase">
-              <tr className="border-b border-border">
-                <th className="py-2 text-left font-medium">Lie</th>
-                <th className="py-2 text-left font-medium">Head wind (m/s)</th>
-                <th className="py-2 text-left font-medium">Cross wind (m/s)</th>
-                <th className="py-2 text-right font-medium">n eff.</th>
-                <th className="py-2 text-right font-medium">Mean yds</th>
-                <th className="py-2 text-right font-medium">Bias</th>
-                <th className="py-2 text-right font-medium">SD L / R</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {buckets
-                .sort((a, b) => b.nEffective - a.nEffective)
-                .map((b) => {
-                  const l = bucketLabel(b.bucketKey);
-                  const bias = b.params.lateral.mean;
-                  return (
-                    <tr key={b.bucketKey}>
-                      <td className="py-1.5">{l.lie}</td>
-                      <td className="py-1.5">{l.head}</td>
-                      <td className="py-1.5">{l.cross}</td>
-                      <td className="py-1.5 text-right">{b.nEffective.toFixed(1)}</td>
-                      <td className="py-1.5 text-right">{yds(b.params.distance.mean)}</td>
-                      <td className="py-1.5 text-right">
-                        {yds(Math.abs(bias), 1)} {bias < 0 ? 'L' : bias > 0 ? 'R' : ''}
-                      </td>
-                      <td className="py-1.5 text-right">
-                        {yds(b.params.lateral.sd_left, 1)} / {yds(b.params.lateral.sd_right, 1)}
-                      </td>
-                    </tr>
-                  );
-                })}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </main>
+      <Card title="Condition buckets (observed, ≥ 15 effective shots)">
+        <FilterableTable
+          label="Condition buckets"
+          columns={bucketColumns}
+          rows={bucketRows}
+          emptyMessage="No condition bucket has enough shots yet; on course the pattern is estimated from the neutral fit."
+        />
+      </Card>
+    </Page>
   );
 }
 

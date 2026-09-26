@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { Card } from '@/components/primitives/Card';
+import { Page, PageHeader } from '@/components/primitives/Page';
 import { createClient } from '@/lib/supabase/server';
-import { SignOutButton } from './sign-out-button';
 
 export default async function Home() {
   const supabase = await createClient();
@@ -17,12 +18,9 @@ export default async function Home() {
     .maybeSingle();
 
   return (
-    <main className="mx-auto w-full max-w-3xl p-6 space-y-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">CaddyMate</h1>
-        <SignOutButton />
-      </header>
-      <section className="card space-y-1">
+    <Page width="narrow">
+      <PageHeader title="Dashboard" />
+      <Card className="gap-1">
         <p className="text-muted text-sm">Signed in as</p>
         <p className="text-lg">{profile?.display_name ?? user.email}</p>
         <p className="text-muted text-sm">
@@ -31,8 +29,8 @@ export default async function Home() {
             ? ` · HI ${profile.handicap_index_official}`
             : ''}
         </p>
-      </section>
-      <nav className="grid gap-3 sm:grid-cols-2">
+      </Card>
+      <div className="grid-2">
         {[
           {
             href: '/review',
@@ -53,7 +51,7 @@ export default async function Home() {
             <span className="text-muted block text-sm">{l.text}</span>
           </Link>
         ))}
-      </nav>
-    </main>
+      </div>
+    </Page>
   );
 }

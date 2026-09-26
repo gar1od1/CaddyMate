@@ -19,12 +19,15 @@ import {
   type FeatureRow,
   type HoleRow,
 } from '@/lib/courses/types';
+import { Select } from '@/components/primitives/Select';
 import { KIND_COLOURS } from './map-style';
 import type { StartDraw } from './targets';
 
 type Change = (fn: (doc: CourseDoc) => CourseDoc) => void;
 
 const label = (s: string) => s.replace(/_/g, ' ');
+const kindOptions = (kinds: readonly FeatureKind[]) =>
+  kinds.map((k) => ({ value: k, label: label(k), hint: isPointKind(k) ? 'point' : 'area' }));
 
 const intOrNull = (v: string): number | null => {
   const n = Number.parseInt(v, 10);
@@ -201,17 +204,14 @@ export function HolePanel(props: HolePanelProps) {
         ))}
         {!readOnly ? (
           <div className="flex gap-2 pt-1">
-            <select
-              className="cm-field flex-1"
+            <Select
+              size="sm"
+              className="min-w-0 flex-1"
+              aria-label="New feature kind"
+              options={kindOptions(FEATURE_KINDS)}
               value={newKind}
-              onChange={(e) => setNewKind(e.target.value as FeatureKind)}
-            >
-              {FEATURE_KINDS.map((k) => (
-                <option key={k} value={k}>
-                  {label(k)}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setNewKind(v as FeatureKind)}
+            />
             <button
               type="button"
               className="cm-btn-sm"
@@ -294,24 +294,16 @@ function FeatureEditor(props: {
           className="h-3 w-3 shrink-0 rounded-sm"
           style={{ background: KIND_COLOURS[f.kind] }}
         />
-        <select
-          className="cm-field flex-1"
-          value={f.kind}
-          disabled={readOnly}
+        <Select
+          size="sm"
+          className="min-w-0 flex-1"
           aria-label="Kind"
-          onChange={(e) => {
-            const kind = e.target.value as FeatureKind;
-            // Point ↔ polygon kinds need a different geometry; keep the kind change within its shape.
-            if (isPointKind(kind) !== point) return;
-            set({ kind });
-          }}
-        >
-          {FEATURE_KINDS.filter((k) => isPointKind(k) === point).map((k) => (
-            <option key={k} value={k}>
-              {label(k)}
-            </option>
-          ))}
-        </select>
+          disabled={readOnly}
+          // Point ↔ polygon kinds need a different geometry; keep the kind change within its shape.
+          options={kindOptions(FEATURE_KINDS.filter((k) => isPointKind(k) === point))}
+          value={f.kind}
+          onChange={(v) => set({ kind: v as FeatureKind })}
+        />
         <select
           className="cm-field w-24"
           value={f.penalty}
@@ -354,21 +346,24 @@ function FeatureEditor(props: {
               </label>
             </div>
           ) : null}
-          <label className="block">
-            <span className="cm-label">Hole</span>
-            <select
-              className="cm-field"
-              value={f.hole_id}
+          <div>
+            <span className="cm-label" id={`hole-of-${f.feature_id}`}>
+              Hole
+            </span>
+            <Select
+              size="sm"
+              className="w-full"
+              aria-labelledby={`hole-of-${f.feature_id}`}
               disabled={readOnly}
-              onChange={(e) => set({ hole_id: e.target.value })}
-            >
-              {props.doc.holes.map((h) => (
-                <option key={h.hole_id} value={h.hole_id}>
-                  Hole {h.hole_number}
-                </option>
-              ))}
-            </select>
-          </label>
+              options={props.doc.holes.map((h) => ({
+                value: h.hole_id,
+                label: `Hole ${String(h.hole_number)}`,
+                hint: `par ${String(h.par)}`,
+              }))}
+              value={f.hole_id}
+              onChange={(v) => set({ hole_id: v })}
+            />
+          </div>
           <input
             className="cm-field"
             placeholder="Notes"

@@ -87,7 +87,7 @@ export function NewCourseForm() {
               required
             />
           </label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid-2">
             <label className="block space-y-1">
               <span className="text-muted text-sm">Latitude</span>
               <input
@@ -187,7 +187,7 @@ export function NewCourseForm() {
         </section>
       </div>
 
-      <div className="card min-h-[480px] overflow-hidden !p-0 lg:sticky lg:top-6 lg:h-[calc(100dvh-8rem)]">
+      <div className="card min-h-[480px] overflow-hidden !p-0 lg:sticky lg:top-[calc(var(--topbar-h)+1.5rem)] lg:h-[calc(100dvh-var(--topbar-h)-3rem)]">
         <LocationPicker
           className="h-full min-h-[480px] w-full"
           value={centre}

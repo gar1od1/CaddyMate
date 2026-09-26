@@ -1,8 +1,8 @@
-import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getCourse, type Db } from '@/lib/courses/repo';
 import { CourseEditor } from '@/components/course-editor/course-editor';
+import { Page, PageHeader } from '@/components/primitives/Page';
 
 export const metadata = { title: 'Course · CaddyMate' };
 
@@ -30,12 +30,10 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
   if (!course) notFound();
   if (course.holes.length === 0) {
     return (
-      <main className="mx-auto max-w-3xl p-6">
+      <Page width="narrow">
+        <PageHeader title={course.course.name} />
         <p className="text-muted">This course has no holes yet.</p>
-        <Link href="/courses" className="link text-sm">
-          ← Courses
-        </Link>
-      </main>
+      </Page>
     );
   }
   return <CourseEditor initial={course} readOnly />;
