@@ -9,8 +9,8 @@ import type { LatLng } from './engine/index.ts';
 import { geographyToPoint } from './geography.ts';
 import { HttpError } from './http.ts';
 import { PATTERN_SHOT_COLUMNS, type PatternShotRow } from './patterns.ts';
-import type { JobStore } from './refit.ts';
-import type { ClubRow, HoleScoreRow, ProfileRow, ShotRow } from './types.ts';
+import type { JobProfileRow, JobStore } from './refit.ts';
+import type { ClubRow, HoleScoreRow, ShotRow } from './types.ts';
 
 type Res<T> = { data: T | null; error: { message: string; code?: string } | null };
 
@@ -53,11 +53,18 @@ export function supabaseJobStore(
     async profile(uid) {
       const res = await caller
         .from('profiles')
-        .select('handedness, handicap_index_official, recency_half_life_days')
+        .select('handedness, handicap_index_official, recency_half_life_days, condition_overrides')
         .eq('user_id', uid)
         .maybeSingle();
       if (res.error) throw new Error(`profile: ${res.error.message}`);
-      return (res.data as ProfileRow | null) ?? null;
+      return (res.data as JobProfileRow | null) ?? null;
+    },
+    async writeConditionOverrides(uid, overrides) {
+      if (uid !== userId) throw new Error('writeConditionOverrides: foreign user');
+      check(
+        await caller.from('profiles').update({ condition_overrides: overrides }).eq('user_id', uid),
+        'writeConditionOverrides',
+      );
     },
     async clubs() {
       return must(await caller.from('clubs').select(CLUB_COLUMNS), 'clubs') as ClubRow[];
@@ -110,26 +117,11 @@ export function supabaseJobStore(
         );
       }
     },
-    async staleNeutralShots(clubIds, version) {
-      const out: ShotRow[] = [];
-      for (const ids of chunks(clubIds, 100)) {
-        if (!ids.length) continue;
-        out.push(
-          ...(await selectAll<ShotRow>(
-            (a, b) =>
-              caller
-                .from('shots')
-                .select('*')
-                .eq('source', 'course')
-                .in('club_id', ids)
-                .or(`condition_model_version.is.null,condition_model_version.lt.${version}`)
-                .order('shot_id')
-                .range(a, b) as unknown as PromiseLike<Res<ShotRow[]>>,
-            'staleNeutralShots',
-          )),
-        );
-      }
-      return out;
+    staleNeutralShots(clubIds, version) {
+      return courseShotRows(caller, clubIds, version);
+    },
+    courseShots(clubIds) {
+      return courseShotRows(caller, clubIds, null);
     },
     async pins(roundIds) {
       const out = new Map<string, Map<number, LatLng>>();
@@ -154,6 +146,30 @@ export function supabaseJobStore(
       check(await caller.from('shots').update(patch).eq('shot_id', shotId), 'updateShot');
     },
   };
+}
+
+/** Course shots of these clubs; with `staleBelow`, only those behind that model version. */
+async function courseShotRows(
+  caller: SupabaseClient,
+  clubIds: readonly string[],
+  staleBelow: number | null,
+): Promise<ShotRow[]> {
+  const out: ShotRow[] = [];
+  for (const ids of chunks(clubIds, 100)) {
+    out.push(
+      ...(await selectAll<ShotRow>(
+        (a, b) => {
+          let q = caller.from('shots').select('*').eq('source', 'course').in('club_id', ids);
+          if (staleBelow !== null) {
+            q = q.or(`condition_model_version.is.null,condition_model_version.lt.${staleBelow}`);
+          }
+          return q.order('shot_id').range(a, b) as unknown as PromiseLike<Res<ShotRow[]>>;
+        },
+        staleBelow === null ? 'courseShots' : 'staleNeutralShots',
+      )),
+    );
+  }
+  return out;
 }
 
 interface RoundPinRow {

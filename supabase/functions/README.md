@@ -17,11 +17,11 @@ always filtered by the caller's user id).
 
 Jobs (SPEC §8.8, §12):
 
-| Function         | Request                                                                                        | Response                                                                                                                         |
-| ---------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `refit`          | `POST { clubIds?: uuid[], recomputeNeutral?: boolean }`                                        | `{ clubs: [{ clubId, name, n_raw, n_effective, confidence, buckets, fitted_at }], notFound, skipped, neutralUpdated }`           |
-| `finalise-round` | `POST { roundId }`                                                                             | `{ roundId, gross, status, holes: [{ holeNumber, strokes, strokesLogged, putts, penalties, holed }], shotsUpdated, clubsRefit }` |
-| `import-sim`     | `POST { source: 'gspro' \| 'square', csv, clubAliases?: { name: clubId }, utcOffsetMinutes? }` | `{ sessionId, duplicate, format, detected, inserted, skipped, skippedDetail, unmappedClubs, clubsRefit }`                        |
+| Function         | Request                                                                                        | Response                                                                                                                           |
+| ---------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `refit`          | `POST { clubIds?: uuid[], recomputeNeutral?: boolean, learnConditions?: boolean }`             | `{ clubs: [{ clubId, name, n_raw, n_effective, confidence, buckets, fitted_at }], notFound, skipped, neutralUpdated, conditions }` |
+| `finalise-round` | `POST { roundId }`                                                                             | `{ roundId, gross, status, holes: [{ holeNumber, strokes, strokesLogged, putts, penalties, holed }], shotsUpdated, clubsRefit }`   |
+| `import-sim`     | `POST { source: 'gspro' \| 'square', csv, clubAliases?: { name: clubId }, utcOffsetMinutes? }` | `{ sessionId, duplicate, format, detected, inserted, skipped, skippedDetail, unmappedClubs, clubsRefit }`                          |
 
 Errors are `{ error: { code, message } }` with 400 / 401 / 403 (`forbidden`: the caller
 lacks the permission key, docs/standards/permissions.md) / 404 / 405 / 409 / 413
@@ -61,7 +61,27 @@ server result wins over the device's incremental refit. `recomputeNeutral: true`
 first re-runs `normaliseShot` for every course shot of those clubs whose
 `condition_model_version` is null or older than the engine's (SPEC §7.6), using
 the stored conditions snapshot (its `elevation_*_m`; no grid), the club, the
-profile handedness and the pin (round override, else green centre).
+profile handedness and the pin (round override, else green centre), with the
+player's model (`resolveConditionModel(profiles.condition_overrides)`). When
+overrides are present every course shot of those clubs is re-derived, not only
+stale ones: the version cannot tell learned models apart.
+
+`learnConditions` (default `true`) learns the player's condition coefficients
+(SPEC §8.6, decision 007). Every non-putter club's current neutral pattern is
+fitted in memory for its mean, then `fitConditionCoefficients` runs over all
+the caller's course shots (observed result, conditions snapshot, lie, slope,
+handedness; miss-tagged / penalty / putt / reconstructed shots excluded):
+`k_head`, `k_tail`, `k_cross`, `k_elev` per club kind with ≥ 60 shots, by
+weighted ridge regression shrunk towards the defaults and clamped to 0.3×–3×.
+`toConditionOverrides` is deep-merged into `profiles.condition_overrides`
+(other keys kept; no `version`). If that changed, in this order: (1) the
+override is written, (2) every course shot is re-normalised with the new model
+(changed values only), (3) the requested clubs plus every club whose shots
+moved are refitted. `conditions` in the response is `{ estimates, overrides,
+changed }` (null with `learnConditions: false`). A run that dies after (1) is
+repaired by `recomputeNeutral: true`. `finalise-round` and `import-sim` do not
+learn. Repeated refits of the same shots settle on a fixed point (the baseline
+mean moves with the coefficients) within a few runs.
 
 **finalise-round** — for each hole with course shots: `recomputeHoleShots`
 (re-chain, renumber `seq` 1..n, observed / neutral / distance-to-pin) and only

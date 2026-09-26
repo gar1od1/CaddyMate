@@ -31,6 +31,7 @@ import {
 } from './model.ts';
 
 export * from './model.ts';
+export * from './learn.ts';
 
 const KELVIN = 273.15;
 

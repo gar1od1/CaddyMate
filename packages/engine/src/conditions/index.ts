@@ -30,6 +30,7 @@ import {
 } from './model.js';
 
 export * from './model.js';
+export * from './learn.js';
 
 const KELVIN = 273.15;
 

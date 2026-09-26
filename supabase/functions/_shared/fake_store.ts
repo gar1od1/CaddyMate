@@ -15,12 +15,13 @@ import {
   type SimShotInsert,
   type SimStore,
 } from './store.ts';
-import type { ClubRow, HoleScoreRow, ProfileRow, ShotRow } from './types.ts';
+import type { JobProfileRow } from './refit.ts';
+import type { ClubRow, HoleScoreRow, ShotRow } from './types.ts';
 
 export const USER = '00000000-0000-4000-8000-000000000001';
 
 export interface FakeState {
-  profile: ProfileRow | null;
+  profile: JobProfileRow | null;
   clubs: ClubRow[];
   shots: ShotRow[];
   rounds: RoundRow[];
@@ -124,6 +125,11 @@ export function fakeStore(st: FakeState): FinaliseStore & SimStore {
   const pattern = (r: ShotRow): PatternShotRow => r;
   return {
     profile: () => Promise.resolve(st.profile),
+    writeConditionOverrides(_uid, overrides) {
+      st.log.push('writeConditionOverrides');
+      st.profile = { ...st.profile!, condition_overrides: overrides };
+      return Promise.resolve();
+    },
     clubs: () => Promise.resolve(st.clubs.map((c) => ({ ...c }))),
     patternRows: (clubId) =>
       Promise.resolve(st.shots.filter((s) => s.club_id === clubId).map(pattern)),
@@ -143,6 +149,12 @@ export function fakeStore(st: FakeState): FinaliseStore & SimStore {
             s.club_id !== null &&
             clubIds.includes(s.club_id) &&
             (s.condition_model_version === null || s.condition_model_version < version),
+        ),
+      ),
+    courseShots: (clubIds) =>
+      Promise.resolve(
+        st.shots.filter(
+          (s) => s.source === 'course' && s.club_id !== null && clubIds.includes(s.club_id),
         ),
       ),
     pins(roundIds) {
