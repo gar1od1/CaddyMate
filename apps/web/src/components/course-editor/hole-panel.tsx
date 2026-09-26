@@ -19,6 +19,7 @@ import {
   type FeatureRow,
   type HoleRow,
 } from '@/lib/courses/types';
+import { Input } from '@/components/primitives/Input';
 import { Select } from '@/components/primitives/Select';
 import { KIND_COLOURS } from './map-style';
 import type { StartDraw } from './targets';
@@ -60,21 +61,20 @@ export function HolePanel(props: HolePanelProps) {
     <div className="space-y-5">
       <section className="space-y-3">
         <div className="flex items-end gap-3">
-          <label className="w-20">
-            <span className="cm-label">Hole</span>
-            <input
-              className="cm-field"
-              type="number"
-              min={1}
-              max={36}
-              value={hole.hole_number}
-              disabled={readOnly}
-              onChange={(e) => {
-                const n = intOrNull(e.target.value);
-                if (n != null) set({ hole_number: n });
-              }}
-            />
-          </label>
+          <Input
+            density="sm"
+            className="w-20"
+            label="Hole"
+            type="number"
+            min={1}
+            max={36}
+            value={hole.hole_number}
+            disabled={readOnly}
+            onChange={(e) => {
+              const n = intOrNull(e.target.value);
+              if (n != null) set({ hole_number: n });
+            }}
+          />
           <label className="w-20">
             <span className="cm-label">Par</span>
             <select
@@ -133,35 +133,39 @@ export function HolePanel(props: HolePanelProps) {
           const marker = findMarker(doc, t.tee_set_id, hole.hole_id);
           const yards = marker ? markerYardageM(marker, hole) : null;
           return (
-            <div key={t.tee_set_id} className="flex items-center gap-2 text-sm">
+            <div key={t.tee_set_id} className="flex items-end gap-2 text-sm">
               <span
-                className="h-3 w-3 shrink-0 rounded-full border border-black/40"
+                className="mb-2.5 h-3 w-3 shrink-0 rounded-full border border-black/40"
                 style={{ background: t.colour_hex ?? '#fff' }}
               />
-              <span className="w-20 truncate">{t.name}</span>
-              <span className="w-20 font-semibold whitespace-nowrap">
+              <span className="mb-2 w-20 truncate">{t.name}</span>
+              <span className="mb-2 w-20 font-semibold whitespace-nowrap">
                 {marker ? formatYards(yards) : '—'}
               </span>
-              <label className="flex items-center gap-1">
-                <span className="text-muted text-xs">SI</span>
-                <input
-                  className="cm-field w-14"
-                  type="number"
-                  min={1}
-                  max={18}
-                  disabled={readOnly || !marker}
-                  title={marker ? 'Stroke index' : 'Place the marker first'}
-                  value={marker?.stroke_index ?? ''}
-                  onChange={(e) =>
-                    marker &&
-                    change((d) =>
-                      updateMarker(d, marker.tee_id, { stroke_index: intOrNull(e.target.value) }),
-                    )
-                  }
-                />
-              </label>
+              <Input
+                density="sm"
+                className="w-14"
+                label={
+                  <>
+                    <abbr title="Stroke index">SI</abbr>
+                    <span className="sr-only"> {t.name}</span>
+                  </>
+                }
+                type="number"
+                min={1}
+                max={18}
+                disabled={readOnly || !marker}
+                title={marker ? 'Stroke index' : 'Place the marker first'}
+                value={marker?.stroke_index ?? ''}
+                onChange={(e) =>
+                  marker &&
+                  change((d) =>
+                    updateMarker(d, marker.tee_id, { stroke_index: intOrNull(e.target.value) }),
+                  )
+                }
+              />
               {!readOnly ? (
-                <span className="ml-auto flex gap-1">
+                <span className="mb-1 ml-auto flex gap-1">
                   <button
                     type="button"
                     className="cm-btn-sm"
@@ -322,28 +326,26 @@ function FeatureEditor(props: {
         <div className="space-y-2">
           {point ? (
             <div className="flex gap-2">
-              <label className="flex-1">
-                <span className="cm-label">Radius (m)</span>
-                <input
-                  className="cm-field"
-                  type="number"
-                  step="0.5"
-                  disabled={readOnly}
-                  value={f.tree_radius_m ?? ''}
-                  onChange={(e) => set({ tree_radius_m: numOrNull(e.target.value) })}
-                />
-              </label>
-              <label className="flex-1">
-                <span className="cm-label">Height (m)</span>
-                <input
-                  className="cm-field"
-                  type="number"
-                  step="0.5"
-                  disabled={readOnly}
-                  value={f.tree_height_m ?? ''}
-                  onChange={(e) => set({ tree_height_m: numOrNull(e.target.value) })}
-                />
-              </label>
+              <Input
+                density="sm"
+                className="flex-1"
+                label="Radius (m)"
+                type="number"
+                step="0.5"
+                disabled={readOnly}
+                value={f.tree_radius_m ?? ''}
+                onChange={(e) => set({ tree_radius_m: numOrNull(e.target.value) })}
+              />
+              <Input
+                density="sm"
+                className="flex-1"
+                label="Height (m)"
+                type="number"
+                step="0.5"
+                disabled={readOnly}
+                value={f.tree_height_m ?? ''}
+                onChange={(e) => set({ tree_height_m: numOrNull(e.target.value) })}
+              />
             </div>
           ) : null}
           <div>
@@ -364,9 +366,9 @@ function FeatureEditor(props: {
               onChange={(v) => set({ hole_id: v })}
             />
           </div>
-          <input
-            className="cm-field"
-            placeholder="Notes"
+          <Input
+            density="sm"
+            label="Notes"
             disabled={readOnly}
             value={f.notes ?? ''}
             onChange={(e) => set({ notes: e.target.value || null })}

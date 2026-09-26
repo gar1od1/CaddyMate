@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useActionState, useState } from 'react';
 import { LocationPicker, type Bounds, type LatLngValue } from '@/components/map/location-picker';
+import { Input } from '@/components/primitives/Input';
 import type { ImportResponse } from '@/lib/osm/import';
 import { createCourseAction, type CreateState } from './actions';
 
@@ -66,53 +67,51 @@ export function NewCourseForm() {
       <div className="space-y-6">
         <form action={formAction} className="card space-y-4">
           <h2 className="font-semibold">Details</h2>
-          <label className="block space-y-1">
-            <span className="text-muted text-sm">Name</span>
-            <input
-              className="input"
-              name="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Moyvalley Golf Club"
-            />
-          </label>
-          <label className="block space-y-1">
-            <span className="text-muted text-sm">Country (2-letter code)</span>
-            <input
-              className="input uppercase"
-              name="country"
-              maxLength={2}
-              value={country}
-              onChange={(e) => setCountry(e.target.value.toUpperCase())}
-              required
-            />
-          </label>
+          <Input
+            label="Name"
+            name="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Moyvalley Golf Club"
+            required
+          />
+          <Input
+            label="Country (2-letter code)"
+            name="country"
+            inputClassName="uppercase"
+            maxLength={2}
+            value={country}
+            onChange={(e) => setCountry(e.target.value.toUpperCase())}
+            required
+          />
           <div className="grid-2">
-            <label className="block space-y-1">
-              <span className="text-muted text-sm">Latitude</span>
-              <input
-                className="input"
-                name="lat"
-                inputMode="decimal"
-                value={lat}
-                onChange={(e) => setLat(e.target.value)}
-                placeholder="53.4245"
-              />
-            </label>
-            <label className="block space-y-1">
-              <span className="text-muted text-sm">Longitude</span>
-              <input
-                className="input"
-                name="lng"
-                inputMode="decimal"
-                value={lng}
-                onChange={(e) => setLng(e.target.value)}
-                placeholder="-6.9165"
-              />
-            </label>
+            <Input
+              label="Latitude"
+              name="lat"
+              inputMode="decimal"
+              value={lat}
+              onChange={(e) => setLat(e.target.value)}
+              placeholder="53.4245"
+              aria-describedby="centre-hint"
+            />
+            <Input
+              label="Longitude"
+              name="lng"
+              inputMode="decimal"
+              value={lng}
+              onChange={(e) => setLng(e.target.value)}
+              placeholder="-6.9165"
+              aria-describedby="centre-hint"
+            />
           </div>
-          <p className="text-muted text-xs">Click the map to set the centre.</p>
-          {state.error ? <p className="text-danger text-sm">{state.error}</p> : null}
+          <p id="centre-hint" className="text-muted text-xs">
+            Click the map to set the centre.
+          </p>
+          {state.error ? (
+            <p className="text-danger text-sm" role="alert">
+              {state.error}
+            </p>
+          ) : null}
           <button className="btn w-full" type="submit" disabled={pending || !name.trim()}>
             {pending ? 'Creating…' : 'Create empty course'}
           </button>
@@ -124,24 +123,43 @@ export function NewCourseForm() {
             Pulls <code>golf=*</code> holes, greens, tees, fairways, bunkers and water from OSM via
             Overpass into a new draft you can then fix up.
           </p>
-          <div className="space-y-2 text-sm">
+          <fieldset className="space-y-2 text-sm">
+            <legend className="sr-only">Area to import</legend>
             <label className="flex items-center gap-2">
-              <input type="radio" checked={area === 'view'} onChange={() => setArea('view')} />
+              <input
+                type="radio"
+                name="area"
+                checked={area === 'view'}
+                onChange={() => setArea('view')}
+              />
               Visible map area
             </label>
             <label className="flex items-center gap-2">
-              <input type="radio" checked={area === 'around'} onChange={() => setArea('around')} />
-              Around the centre, radius
               <input
-                className="w-20 rounded border border-border bg-bg-elevated px-2 py-0.5"
+                type="radio"
+                name="area"
+                checked={area === 'around'}
+                onChange={() => setArea('around')}
+              />
+              Around the centre
+            </label>
+            {area === 'around' ? (
+              <Input
+                className="pl-6"
+                label="Radius (m)"
+                inputClassName="max-w-[10rem]"
                 inputMode="numeric"
                 value={radiusM}
                 onChange={(e) => setRadiusM(e.target.value)}
               />
-              m
-            </label>
+            ) : null}
             <label className="flex items-center gap-2">
-              <input type="radio" checked={area === 'file'} onChange={() => setArea('file')} />
+              <input
+                type="radio"
+                name="area"
+                checked={area === 'file'}
+                onChange={() => setArea('file')}
+              />
               Overpass JSON file (e.g. exported from overpass-turbo with <code>out geom;</code>)
             </label>
             {area === 'file' ? (
@@ -152,8 +170,12 @@ export function NewCourseForm() {
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               />
             ) : null}
-          </div>
-          {importError ? <p className="text-danger text-sm">{importError}</p> : null}
+          </fieldset>
+          {importError ? (
+            <p className="text-danger text-sm" role="alert">
+              {importError}
+            </p>
+          ) : null}
           <button
             type="button"
             className="btn w-full"

@@ -1,5 +1,8 @@
 'use client';
 
+import { useState } from 'react';
+import { Input } from '@/components/primitives/Input';
+import { ConfirmDialog } from '@/components/primitives/Dialog';
 import { addTeeSet, removeTeeSet, updateTeeSet, type NewId } from '@/lib/courses/doc';
 import { formatYards, markerYardageM } from '@/lib/courses/geometry';
 import type { CourseDoc, TeeSetRow } from '@/lib/courses/types';
@@ -74,37 +77,36 @@ function TeeSetEditor(props: {
   const holes = new Map(doc.holes.map((h) => [h.hole_id, h]));
   const totalM = markers.reduce((s, m) => s + (markerYardageM(m, holes.get(m.hole_id)) ?? 0), 0);
   const holePar = doc.holes.reduce((s, h) => s + h.par, 0);
+  const [confirming, setConfirming] = useState(false);
 
   const num = (
     key: 'course_rating' | 'slope_rating' | 'bogey_rating' | 'par',
     text: string,
     step = '1',
   ) => (
-    <label className="flex-1">
-      <span className="cm-label">{text}</span>
-      <input
-        className="cm-field"
-        type="number"
-        step={step}
-        disabled={readOnly}
-        value={t[key] ?? ''}
-        onChange={(e) => onChange({ [key]: numOrNull(e.target.value) })}
-      />
-    </label>
+    <Input
+      density="sm"
+      className="min-w-0 flex-1"
+      label={text}
+      type="number"
+      step={step}
+      disabled={readOnly}
+      value={t[key] ?? ''}
+      onChange={(e) => onChange({ [key]: numOrNull(e.target.value) })}
+    />
   );
 
   return (
     <div className="space-y-3 rounded-xl border border-border p-3">
       <div className="flex items-end gap-2">
-        <label className="flex-1">
-          <span className="cm-label">Name</span>
-          <input
-            className="cm-field"
-            disabled={readOnly}
-            value={t.name}
-            onChange={(e) => onChange({ name: e.target.value })}
-          />
-        </label>
+        <Input
+          density="sm"
+          className="flex-1"
+          label="Name"
+          disabled={readOnly}
+          value={t.name}
+          onChange={(e) => onChange({ name: e.target.value })}
+        />
         <label>
           <span className="cm-label">Colour</span>
           <input
@@ -130,11 +132,27 @@ function TeeSetEditor(props: {
             : ''}
         </span>
         {!readOnly ? (
-          <button type="button" className="cm-btn-sm cm-btn-danger" onClick={props.onDelete}>
+          <button
+            type="button"
+            className="cm-btn-sm cm-btn-danger"
+            onClick={() => (markers.length > 0 ? setConfirming(true) : props.onDelete())}
+          >
             Delete
           </button>
         ) : null}
       </div>
+      <ConfirmDialog
+        open={confirming}
+        tone="danger"
+        title={`Delete the ${t.name} tee set?`}
+        message={`Its ${String(markers.length)} tee markers and stroke indexes go with it.`}
+        confirmLabel="Delete tee set"
+        onCancel={() => setConfirming(false)}
+        onConfirm={() => {
+          setConfirming(false);
+          props.onDelete();
+        }}
+      />
     </div>
   );
 }

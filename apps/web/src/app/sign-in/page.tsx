@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Input } from '@/components/primitives/Input';
 import { createClient } from '@/lib/supabase/client';
 
 export default function SignInPage() {
@@ -50,27 +51,35 @@ export default function SignInPage() {
           {step === 'email' ? 'Sign in with your email' : `Enter the code sent to ${email}`}
         </p>
         {step === 'email' ? (
-          <input
-            className="input"
+          <Input
+            key="email"
+            label="Email"
             type="email"
             autoComplete="email"
             placeholder="you@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            autoFocus
           />
         ) : (
-          <input
-            className="input"
+          <Input
+            key="code"
+            label="Code"
             inputMode="numeric"
             autoComplete="one-time-code"
             placeholder="123456"
             value={code}
             onChange={(e) => setCode(e.target.value)}
             required
+            autoFocus
           />
         )}
-        {error ? <p className="text-danger text-sm">{error}</p> : null}
+        {error ? (
+          <p className="text-danger text-sm" role="alert">
+            {error}
+          </p>
+        ) : null}
         <button className="btn w-full" disabled={busy} type="submit">
           {step === 'email' ? 'Send code' : 'Sign in'}
         </button>

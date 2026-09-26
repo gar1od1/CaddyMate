@@ -18,9 +18,13 @@ import {
   withYardages,
 } from '@/lib/courses/doc';
 import { publishCourse, saveDraft, type Db } from '@/lib/courses/repo';
+import { snapTargets } from '@/lib/courses/snap';
 import { isPointKind, type CourseDoc, type CourseVersionDoc } from '@/lib/courses/types';
 import { EditorMap, type DrawSession, type EditorMapHandle } from './editor-map';
+import { Button } from '@/components/primitives/Button';
+import { ConfirmDialog, Dialog } from '@/components/primitives/Dialog';
 import { DesktopOnlyNotice } from '@/components/primitives/DesktopOnlyNotice';
+import { Input } from '@/components/primitives/Input';
 import { HolePanel } from './hole-panel';
 import type { HiddenKey } from './map-style';
 import { EDIT_PROMPT, PROMPTS, type DrawTarget, type StartDraw } from './targets';
@@ -35,6 +39,18 @@ interface Meta {
 }
 
 const newId = () => crypto.randomUUID();
+
+/** The hole a draw target belongs to (what its shape snaps to), if any. */
+function holeOfTarget(doc: CourseDoc, target: DrawTarget): string | null {
+  switch (target.t) {
+    case 'feature':
+      return doc.features.find((f) => f.feature_id === target.featureId)?.hole_id ?? null;
+    case 'courseCentre':
+      return null;
+    default:
+      return target.holeId;
+  }
+}
 
 interface Props {
   initial: CourseVersionDoc;
@@ -70,10 +86,19 @@ export function CourseEditor({ initial, readOnly = false }: Props) {
     session: DrawSession;
     hidden: HiddenKey;
   } | null>(null);
+  const [snapOn, setSnapOn] = useState(true);
+  const [deleteHoleOpen, setDeleteHoleOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [publishNote, setPublishNote] = useState('');
 
   const issues = useMemo(() => validateDoc(doc), [doc]);
   const errors = issues.filter((i) => i.level === 'error');
   const hole = doc.holes.find((h) => h.hole_id === selectedHoleId) ?? null;
+  const snapTo = useMemo(
+    () =>
+      active && snapOn ? snapTargets(doc, holeOfTarget(doc, active.target), active.hidden) : [],
+    [active, snapOn, doc],
+  );
 
   const change = useCallback((fn: (d: CourseDoc) => CourseDoc) => {
     setDoc((d) => fn(d));
@@ -203,12 +228,13 @@ export function CourseEditor({ initial, readOnly = false }: Props) {
     }
   };
 
-  const publish = async () => {
-    const reason = window.prompt(
-      `Publish a new version of ${meta.name}? Rounds already played keep the version they used.\n\nChange note (optional):`,
-      course.current_version === 0 ? 'Initial version' : '',
-    );
-    if (reason === null) return;
+  const openPublish = () => {
+    setPublishNote(course.current_version === 0 ? 'Initial version' : '');
+    setPublishOpen(true);
+  };
+
+  const publish = async (reason: string) => {
+    setPublishOpen(false);
     if (dirty && !(await save())) return;
     setBusy('publishing');
     try {
@@ -274,7 +300,7 @@ export function CourseEditor({ initial, readOnly = false }: Props) {
                   type="button"
                   className="btn px-4 py-2 text-sm"
                   disabled={busy !== null || drawing || errors.length > 0 || doc.holes.length === 0}
-                  onClick={() => void publish()}
+                  onClick={openPublish}
                 >
                   {busy === 'publishing' ? 'Publishing…' : 'Publish'}
                 </button>
@@ -349,14 +375,7 @@ export function CourseEditor({ initial, readOnly = false }: Props) {
                           change={change}
                           startDraw={startDraw}
                           onSelectFeature={setSelectedFeatureId}
-                          onDeleteHole={() => {
-                            if (
-                              !window.confirm(`Delete hole ${hole.hole_number} and its features?`)
-                            )
-                              return;
-                            change((d) => removeHole(d, hole.hole_id));
-                            setSelectedHoleId(null);
-                          }}
+                          onDeleteHole={() => setDeleteHoleOpen(true)}
                         />
                       </div>
                     ) : (
@@ -375,31 +394,28 @@ export function CourseEditor({ initial, readOnly = false }: Props) {
 
                 {tab === 'course' ? (
                   <div className="space-y-3">
-                    <label className="block">
-                      <span className="cm-label">Name</span>
-                      <input
-                        className="cm-field"
-                        disabled={!canWrite}
-                        value={meta.name}
-                        onChange={(e) => {
-                          setMeta((m) => ({ ...m, name: e.target.value }));
-                          setDirty(true);
-                        }}
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="cm-label">Country (ISO 3166-1 alpha-2)</span>
-                      <input
-                        className="cm-field uppercase"
-                        maxLength={2}
-                        disabled={!canWrite}
-                        value={meta.country}
-                        onChange={(e) => {
-                          setMeta((m) => ({ ...m, country: e.target.value.toUpperCase() }));
-                          setDirty(true);
-                        }}
-                      />
-                    </label>
+                    <Input
+                      density="sm"
+                      label="Name"
+                      disabled={!canWrite}
+                      value={meta.name}
+                      onChange={(e) => {
+                        setMeta((m) => ({ ...m, name: e.target.value }));
+                        setDirty(true);
+                      }}
+                    />
+                    <Input
+                      density="sm"
+                      label="Country (ISO 3166-1 alpha-2)"
+                      inputClassName="uppercase"
+                      maxLength={2}
+                      disabled={!canWrite}
+                      value={meta.country}
+                      onChange={(e) => {
+                        setMeta((m) => ({ ...m, country: e.target.value.toUpperCase() }));
+                        setDirty(true);
+                      }}
+                    />
                     <div className="flex items-center gap-2 text-sm">
                       <span className="flex-1 text-muted">
                         Centre {meta.centroid.coordinates[1]!.toFixed(5)},{' '}
@@ -470,6 +486,7 @@ export function CourseEditor({ initial, readOnly = false }: Props) {
               selectedFeatureId={selectedFeatureId}
               hidden={active?.hidden ?? null}
               session={active?.session ?? null}
+              snapTo={snapTo}
               onDrawn={onDrawn}
               onDrawCancelled={() => setActive(null)}
               onSelectHole={selectHole}
@@ -484,6 +501,19 @@ export function CourseEditor({ initial, readOnly = false }: Props) {
                 <p className="flex-1 text-sm">
                   {active.session.mode === 'edit' ? EDIT_PROMPT : PROMPTS[active.target.t]}
                 </p>
+                {active.session.mode !== 'point' ? (
+                  <label
+                    className="flex shrink-0 items-center gap-1.5 text-sm"
+                    title="Snap vertices to this hole's features and green within 12 px (hold Alt to place freely)"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={snapOn}
+                      onChange={(e) => setSnapOn(e.target.checked)}
+                    />
+                    Snap
+                  </label>
+                ) : null}
                 {active.session.mode === 'edit' ? (
                   <>
                     <button
@@ -506,6 +536,55 @@ export function CourseEditor({ initial, readOnly = false }: Props) {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleteHoleOpen && hole !== null}
+        tone="danger"
+        title={`Delete hole ${String(hole?.hole_number ?? '')}?`}
+        message="Its features, green, line of play and tee markers are removed from the draft."
+        confirmLabel="Delete hole"
+        onCancel={() => setDeleteHoleOpen(false)}
+        onConfirm={() => {
+          setDeleteHoleOpen(false);
+          if (!hole) return;
+          change((d) => removeHole(d, hole.hole_id));
+          setSelectedHoleId(null);
+        }}
+      />
+
+      <Dialog
+        open={publishOpen}
+        onClose={() => setPublishOpen(false)}
+        title={`Publish ${meta.name}?`}
+        description={
+          dirty
+            ? 'Saves the draft, then publishes it as a new version. Rounds already played keep the version they used.'
+            : 'Publishes the draft as a new version. Rounds already played keep the version they used.'
+        }
+      >
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void publish(publishNote);
+          }}
+        >
+          <Input
+            label="Change note"
+            hint="Optional. Stored with the new version."
+            value={publishNote}
+            onChange={(e) => setPublishNote(e.target.value)}
+          />
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="secondary" size="md" onClick={() => setPublishOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" size="md">
+              Publish
+            </Button>
+          </div>
+        </form>
+      </Dialog>
     </>
   );
 }

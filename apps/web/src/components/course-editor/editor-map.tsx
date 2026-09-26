@@ -3,12 +3,13 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './editor.css';
 import { useCallback, useEffect, useImperativeHandle, useRef, type Ref } from 'react';
-import type { Geometry, LineString, Polygon, Position } from 'geojson';
+import type { FeatureCollection, Geometry, LineString, Polygon, Position } from 'geojson';
 import type { GeoJSONSource, Marker } from 'maplibre-gl';
 import type MapboxDraw from '@mapbox/mapbox-gl-draw';
 import { SatelliteMap } from '@/components/map/satellite-map';
 import type { MaplibreMap, MaplibreModule } from '@/components/map/maplibre';
 import { formatYards, markerYardageM } from '@/lib/courses/geometry';
+import { snapPoint, SNAP_TOLERANCE_PX, type SnapGeometry, type SnapHit } from '@/lib/courses/snap';
 import type { CourseDoc } from '@/lib/courses/types';
 import {
   buildCourseCollection,
@@ -17,6 +18,7 @@ import {
   DRAW_STYLES,
   type HiddenKey,
 } from './map-style';
+import { snappingModes, type DrawMode, type Snapper } from './snap-modes';
 
 /** What the draw tool is doing right now. */
 export type DrawSession =
@@ -39,6 +41,8 @@ interface Props {
   selectedFeatureId: string | null;
   hidden: HiddenKey;
   session: DrawSession | null;
+  /** Geometries the shape in the draw tool snaps to (empty: snapping off). */
+  snapTo: readonly SnapGeometry[];
   onDrawn: (geometry: Geometry) => void;
   onDrawCancelled: () => void;
   onSelectHole: (holeId: string) => void;
@@ -48,6 +52,7 @@ interface Props {
 }
 
 const EDIT_ID = 'cm-edit';
+const SNAP_SOURCE = 'cm-snap';
 
 const MODE_FOR: Record<'polygon' | 'line' | 'point', string> = {
   polygon: 'draw_polygon',
@@ -86,8 +91,10 @@ function positionsOf(g: Geometry | null): Position[] {
   }
 }
 
-async function createDraw(): Promise<MapboxDraw> {
+async function createDraw(snap: Snapper): Promise<MapboxDraw> {
   const { default: Draw } = await import('@mapbox/mapbox-gl-draw');
+  // `modes` is untyped in components/map/mapbox-gl-draw.d.ts.
+  const stock = (Draw as unknown as { modes: Record<string, DrawMode> }).modes;
   // mapbox-gl-draw toggles mapbox CSS classes; point them at MapLibre's.
   Object.assign(Draw.constants.classes, {
     CANVAS: 'maplibregl-canvas',
@@ -96,14 +103,29 @@ async function createDraw(): Promise<MapboxDraw> {
     CONTROL_GROUP: 'maplibregl-ctrl-group',
     ATTRIBUTION: 'maplibregl-ctrl-attrib',
   });
-  return new Draw({
+  const options = {
     displayControlsDefault: false,
     controls: {},
     styles: DRAW_STYLES,
     boxSelect: false,
     clickBuffer: 4,
-  });
+    modes: snappingModes(stock, snap),
+  };
+  return new Draw(options);
 }
+
+const snapCue = (hit: SnapHit | null): FeatureCollection => ({
+  type: 'FeatureCollection',
+  features: hit
+    ? [
+        {
+          type: 'Feature',
+          properties: { kind: hit.kind },
+          geometry: { type: 'Point', coordinates: hit.position },
+        },
+      ]
+    : [],
+});
 
 /** Satellite map + course layers + mapbox-gl-draw for editing one geometry at a time. */
 export function EditorMap(props: Props) {
@@ -113,6 +135,7 @@ export function EditorMap(props: Props) {
   const drawRef = useRef<MapboxDraw | null>(null);
   const markersRef = useRef<Marker[]>([]);
   const readyRef = useRef(false);
+  const cueRef = useRef<string>('');
   // Latest props for map event handlers registered once.
   const live = useRef(props);
   useEffect(() => {
@@ -220,6 +243,27 @@ export function EditorMap(props: Props) {
     [fit],
   );
 
+  // Snap a cursor position to the current targets and show the cue (a ring on
+  // the snapped point). Hold Alt to place a vertex freely.
+  const snap = useCallback<Snapper>((lngLat, e) => {
+    const map = mapRef.current;
+    const targets = live.current.snapTo;
+    const hit =
+      map && lngLat && targets.length > 0 && !e?.originalEvent?.altKey
+        ? snapPoint([lngLat.lng, lngLat.lat], targets, SNAP_TOLERANCE_PX, (p) =>
+            map.project(p as [number, number]),
+          )
+        : null;
+    const key = hit ? hit.position.join(',') : '';
+    if (map && key !== cueRef.current) {
+      cueRef.current = key;
+      void map.getSource<GeoJSONSource>(SNAP_SOURCE)?.setData(snapCue(hit));
+    }
+    return hit && lngLat
+      ? { lng: hit.position[0]!, lat: hit.position[1]! }
+      : (lngLat ?? { lng: 0, lat: 0 });
+  }, []);
+
   const onLoad = useCallback(
     (map: MaplibreMap, ml: MaplibreModule) => {
       mapRef.current = map;
@@ -255,10 +299,23 @@ export function EditorMap(props: Props) {
         });
       }
 
-      void createDraw().then((draw) => {
+      void createDraw(snap).then((draw) => {
         if (mapRef.current !== map) return;
         drawRef.current = draw;
         map.addControl(draw as never);
+        // Snap cue above the draw layers.
+        map.addSource(SNAP_SOURCE, { type: 'geojson', data: snapCue(null) });
+        map.addLayer({
+          id: 'cm-snap-cue',
+          type: 'circle',
+          source: SNAP_SOURCE,
+          paint: {
+            'circle-radius': ['case', ['==', ['get', 'kind'], 'vertex'], 9, 7],
+            'circle-color': 'rgba(0,0,0,0)',
+            'circle-stroke-color': '#22d3ee',
+            'circle-stroke-width': 3,
+          },
+        });
         const events = map as unknown as {
           on(
             type: string,
@@ -298,7 +355,7 @@ export function EditorMap(props: Props) {
         }
       });
     },
-    [render, fit],
+    [render, fit, snap],
   );
 
   // Re-render layers whenever the document or selection changes.
@@ -311,9 +368,10 @@ export function EditorMap(props: Props) {
     const draw = drawRef.current;
     if (!draw || !readyRef.current) return;
     applySession(draw, session);
+    snap(null);
     const canvas = mapRef.current?.getCanvas();
     if (canvas) canvas.style.cursor = session && session.mode !== 'edit' ? 'crosshair' : '';
-  }, [session]);
+  }, [session, snap]);
 
   useEffect(
     () => () => {
