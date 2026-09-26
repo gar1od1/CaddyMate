@@ -5,7 +5,27 @@ web (Next.js), Garmin Connect IQ watch companion, Supabase backend, and a
 shared pure-TypeScript golf engine.
 
 The product and technical specification lives in [`docs/SPEC.md`](docs/SPEC.md).
-Architecture decisions that change the spec go in `docs/decisions/`.
+Architecture decisions that change the spec go in [`docs/decisions/`](docs/decisions/README.md).
+
+## Architecture
+
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) maps the system as built: packages, app shells,
+routing, auth, the mobile local-first store and sync queue, RLS, migrations, Edge Functions and the
+vendored engine, deployment.
+
+## Standards
+
+Read before contributing (humans and AI assistants alike):
+
+- [`CLAUDE.md`](CLAUDE.md) — standing instructions: naming, domain rules, commands, definition of
+  done.
+- [`docs/standards/working-rules.md`](docs/standards/working-rules.md) — planning, asking,
+  verification, scope, commit and PR hygiene.
+- [`docs/standards/web-ui.md`](docs/standards/web-ui.md) — web UI conventions.
+- [`docs/standards/permissions.md`](docs/standards/permissions.md) — RLS, policies and service-role
+  use.
+- [`docs/decisions/`](docs/decisions/README.md) — ADR index, template and when one is required.
+- [`.github/pull_request_template.md`](.github/pull_request_template.md) — PR checklist.
 
 ## Layout
 
