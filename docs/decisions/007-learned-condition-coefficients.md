@@ -88,3 +88,16 @@ shot rather than only those behind the version.
 - Verified by engine unit + fast-check properties (recovery, no-signal, clamps, exact ½ prior
   weight at 60 shots; 100 % coverage) and Deno handler tests on the fake store (order, merge,
   opt-out, fixed point). Not verified on real rounds or against a deployed database.
+
+## Follow-up
+
+The "device still normalises with the default model" gap above is closed for `@caddymate/api` and
+mobile: `Profile.conditionOverrides` carries `profiles.condition_overrides` (untrusted JSON, `{}`
+when absent) and `playerConditionModel(profile)` resolves it once with `resolveConditionModel`.
+The result is passed as `model` to `recomputeHoleShots` (new `RecomputeContext.model`, mirrored in
+`supabase/functions/_shared/hole.ts`), the server `recomputeHole`, the device `saveHole` (profile
+read from the existing `profile:<userId>` kv cache, so it works offline; a profile cached before
+this change has no field and falls back to the defaults until the next profile fetch), the
+dispersion overlay (`conditionPattern`), plays-like and the strategy search (`ShotContext.model`,
+also folded into the recommendation cache key). `finalise-round` does not pass the model yet, so
+it still re-derives neutral results with the defaults; the web app applies no condition model.

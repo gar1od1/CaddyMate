@@ -2,6 +2,7 @@ import {
   STANDARD_CONDITIONS,
   FLAT_STANCE,
   fitPattern,
+  resolveConditionModel,
   haversineDistanceM,
   priorFor,
   type ClubPattern,
@@ -82,6 +83,18 @@ const input = (over: Partial<OverlayInput> = {}): OverlayInput => ({
 });
 
 describe('buildDispersionOverlay', () => {
+  it('conditions the pattern with the player condition model (decision 007)', () => {
+    const into = { ...STANDARD_CONDITIONS, windSpeedMps: 6, windFromDeg: 0 };
+    const dflt = buildDispersionOverlay(input({ conditions: into }))!;
+    const learned = resolveConditionModel({ wind: { headPerMps: 0.042 } });
+    const o = buildDispersionOverlay(input({ conditions: into, model: learned }))!;
+    expect(o.meanAlongM).toBeCloseTo(seeded7i.distance.mean * (1 - 0.042 * 6), 6);
+    expect(o.meanAlongM).toBeLessThan(dflt.meanAlongM);
+    expect(
+      conditionPattern(seeded7i, ctx({ conditions: into, model: learned })).distance.mean,
+    ).toBeCloseTo(o.meanAlongM, 9);
+  });
+
   it('draws a cone from the ball, dashed and labelled while seeded', () => {
     const o = buildDispersionOverlay(input())!;
     expect(o.mode).toBe('cone');

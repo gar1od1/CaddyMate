@@ -8,6 +8,7 @@ import {
   STANDARD_CONDITIONS,
   playsLikeDistance,
   type ClubKind,
+  type ConditionModelV1,
   type Conditions,
   type Handedness,
   type LatLng,
@@ -48,6 +49,8 @@ export function playsLike(
     lie: Lie;
     slope: StanceSlope;
     handedness: Handedness;
+    /** The player's condition model (decision 007); default the engine's. */
+    model?: ConditionModelV1;
   },
 ): number | null {
   if (distanceM === null || args.bearingDeg === null || !args.club || args.club.kind === 'putter') {
@@ -62,6 +65,7 @@ export function playsLike(
     lie: args.lie,
     slope: args.slope,
     handedness: args.handedness,
+    ...(args.model ? { model: args.model } : {}),
   });
   return Number.isFinite(v) ? v : null;
 }

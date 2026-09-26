@@ -8,7 +8,11 @@
  *  3. the authoritative refit (§8.8) of every club used in the round.
  * Strokes gained and grades are NOT computed here (see `reviewRoundHook`).
  */
-import type { LatLng } from '../_shared/engine/index.ts';
+import {
+  type ConditionModelOverrides,
+  type LatLng,
+  resolveConditionModel,
+} from '../_shared/engine/index.ts';
 import {
   applyTally,
   holeStrokes,
@@ -18,13 +22,13 @@ import {
 } from '../_shared/hole.ts';
 import { HttpError, json } from '../_shared/http.ts';
 import { type Grants, requirePermission } from '../_shared/permissions.ts';
-import { clubProfile, refitClubs, type ClubRefitResult } from '../_shared/refit.ts';
+import { clubProfile, type ClubRefitResult, refitClubs } from '../_shared/refit.ts';
 import {
+  type DerivedShotPatch,
   derivedShotPatch,
   holeScoreFromRow,
   holeScoreToRow,
   shotFromRow,
-  type DerivedShotPatch,
 } from '../_shared/shots.ts';
 import { type FinaliseStore, isUuid, pinsForRound, readJson } from '../_shared/store.ts';
 import type { HoleScore, LieKind, Shot } from '../_shared/types.ts';
@@ -73,7 +77,9 @@ const ptKey = (p: LatLng) => `${p.lat},${p.lng}`;
 export function storedSurfaces(shots: readonly Shot[]): (p: LatLng) => LieKind | null {
   const m = new Map<string, LieKind>();
   for (const s of shots) if (s.start && s.lie) m.set(ptKey(s.start), s.lie);
-  for (const s of shots) if (s.end && s.resultSurface) m.set(ptKey(s.end), s.resultSurface);
+  for (const s of shots) {
+    if (s.end && s.resultSurface) m.set(ptKey(s.end), s.resultSurface);
+  }
   return (p) => m.get(ptKey(p)) ?? null;
 }
 
@@ -84,7 +90,9 @@ export async function finaliseRound(
   deps: Pick<FinaliseDeps, 'now' | 'reviewRoundHook'>,
 ): Promise<FinaliseResponse> {
   const round = await store.round(roundId);
-  if (!round || round.user_id !== userId) throw new HttpError(404, 'not_found', 'Round not found');
+  if (!round || round.user_id !== userId) {
+    throw new HttpError(404, 'not_found', 'Round not found');
+  }
 
   const [rows, greens, clubs, profile] = await Promise.all([
     store.roundShots(roundId),
@@ -116,6 +124,10 @@ export async function finaliseRound(
         return c ? clubProfile(c) : null;
       },
       handedness: profile?.handedness ?? 'R',
+      // The player's learned coefficients (ADR 007); default model when none.
+      model: resolveConditionModel(
+        (profile?.condition_overrides as ConditionModelOverrides | null | undefined) ?? null,
+      ),
     });
     const orig = new Map(before.map((s) => [s.id, s]));
     const patches: { shot: Shot; patch: DerivedShotPatch }[] = [];
@@ -125,9 +137,13 @@ export async function finaliseRound(
     }
     // (round_id, hole_number, seq) is unique: park renumbered shots first.
     for (const { shot, patch } of patches) {
-      if (patch.seq !== undefined) await store.updateShot(shot.id, { seq: shot.seq + SEQ_PARK });
+      if (patch.seq !== undefined) {
+        await store.updateShot(shot.id, { seq: shot.seq + SEQ_PARK });
+      }
     }
-    for (const { shot, patch } of patches) await store.updateShot(shot.id, patch);
+    for (const { shot, patch } of patches) {
+      await store.updateShot(shot.id, patch);
+    }
     shotsUpdated += patches.length;
 
     const tally = tallyHole(after);
@@ -177,10 +193,14 @@ export async function finaliseRound(
 }
 
 export async function handleFinaliseRound(req: Request, deps: FinaliseDeps): Promise<Response> {
-  if (req.method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST');
+  if (req.method !== 'POST') {
+    throw new HttpError(405, 'method_not_allowed', 'Use POST');
+  }
   const { userId, store, grants } = await deps.authenticate(req);
   requirePermission(grants, 'rounds.write');
   const body = await readJson(req);
-  if (!isUuid(body.roundId)) throw new HttpError(400, 'bad_request', 'roundId must be a uuid');
+  if (!isUuid(body.roundId)) {
+    throw new HttpError(400, 'bad_request', 'roundId must be a uuid');
+  }
   return json(await finaliseRound(store, userId, body.roundId, deps));
 }

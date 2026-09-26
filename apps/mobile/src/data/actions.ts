@@ -7,6 +7,7 @@ import {
   applyTally,
   holeStrokes,
   newRound,
+  playerConditionModel,
   recomputeHoleShots,
   surfaceAt,
   tallyHole,
@@ -69,8 +70,9 @@ export async function saveHole(
   hole: number,
   shots: readonly Shot[],
 ): Promise<Shot[]> {
-  // Clubs and handedness from the local cache (written by useClubs / useProfile)
-  // so neutral results are derived on the device, offline, like on the server.
+  // Clubs, handedness and the learned condition model (decision 007) from the local
+  // cache (written by useClubs / useProfile) so neutral results are derived on the
+  // device, offline, like on the server.
   const [clubs, profile] = await Promise.all([
     local.kvGet<Club[]>('clubs'),
     local.kvGet<Profile | null>(`profile:${round.userId}`),
@@ -81,6 +83,7 @@ export async function saveHole(
     clubFor: (id) => clubs?.find((c) => c.id === id) ?? null,
     handedness: profile?.handedness ?? 'R',
     elevationAt: elevationSampler(cachedGrid(round.courseId, round.courseVersion)),
+    model: playerConditionModel(profile),
   });
   const prev = await local.getHoleScore(round.id, hole);
   const score = scoreHole(applyTally(prev, round.id, hole, tallyHole(recomputed)), round, bundle);

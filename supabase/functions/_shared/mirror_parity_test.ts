@@ -10,7 +10,7 @@ import * as apiHole from '../../../packages/api/src/hole.ts';
 import * as apiPatterns from '../../../packages/api/src/patterns.ts';
 import * as apiRounds from '../../../packages/api/src/rounds.ts';
 import * as apiShots from '../../../packages/api/src/shots.ts';
-import type { LatLng } from './engine/index.ts';
+import { resolveConditionModel, type LatLng } from './engine/index.ts';
 import { ewkbPoint, shotRow } from './fake_store.ts';
 import * as geo from './geography.ts';
 import * as hole from './hole.ts';
@@ -227,6 +227,11 @@ Deno.test('row mapping and geography match the api', () => {
   assertEquals(geo.pointToEwkt(PIN), apiGeo.pointToEwkt(PIN));
 });
 
+const LEARNED = resolveConditionModel({
+  wind: { headPerMps: 0.03, crossPerMps: { iron: 0.02, wedge: 0.02 } },
+  elevation: { perMetre: { driver: 1.2, wood: 1.2, hybrid: 1.2, iron: 1.2, wedge: 1.2 } },
+});
+
 Deno.test('recomputeHoleShots / tallyHole / applyTally match the api', () => {
   const input: Shot[] = holeRows().map(shots.shotFromRow);
   const surfaceAt = (p: LatLng) => (p.lat > 53.403 ? ('green' as const) : ('fairway' as const));
@@ -238,6 +243,13 @@ Deno.test('recomputeHoleShots / tallyHole / applyTally match the api', () => {
       pin: PIN,
       clubFor: (id: string) => CLUBS[id] ?? null,
       elevationAt: (p: LatLng) => (p.lat - 53.4) * 1e4,
+    },
+    // The player's learned condition model (decision 007).
+    {
+      pin: PIN,
+      clubFor: (id: string) => CLUBS[id] ?? null,
+      elevationAt: (p: LatLng) => (p.lat - 53.4) * 1e4,
+      model: LEARNED,
     },
   ];
   for (const ctx of contexts) {
@@ -271,5 +283,12 @@ Deno.test('recomputeHoleShots / tallyHole / applyTally match the api', () => {
   assertEquals(
     full.map((s) => s.neutralDistanceM !== null),
     [true, false, true, true, false, false],
+  );
+  // The learned model reaches the neutral results (same shots, same elevations).
+  const dflt = hole.recomputeHoleShots(input, contexts[3]!);
+  const learned = hole.recomputeHoleShots(input, contexts[4]!);
+  assertEquals(
+    learned.some((s, i) => s.neutralDistanceM !== dflt[i]!.neutralDistanceM),
+    true,
   );
 });

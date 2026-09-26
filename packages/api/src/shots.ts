@@ -12,7 +12,7 @@ import { check, must, num } from './errors.js';
 import { geographyToPoint, pointToEwkt } from './geography.js';
 import { applyTally, recomputeHoleShots, tallyHole } from './hole.js';
 import { surfaceAt } from './playgeo.js';
-import { getProfile } from './profiles.js';
+import { getProfile, playerConditionModel } from './profiles.js';
 import { holeScoreFromRow, roundFromRow, upsertHoleScores } from './rounds.js';
 import type { HoleScore, Json, Row, Shot, ShotConditions, Tables, TargetRef } from './types.js';
 
@@ -213,7 +213,7 @@ export interface RecomputeResult {
 
 /**
  * Server-side recompute of one hole: loads the round, the course geometry,
- * the player's clubs and handedness, the course elevation grid (best effort;
+ * the player's clubs, handedness and condition model (decision 007), the course elevation grid (best effort;
  * GPS altitudes are used without one) and the hole's shots, re-chains and
  * re-derives them including neutral results (see `recomputeHoleShots`),
  * writes the shots back and upserts `hole_scores`.
@@ -243,6 +243,7 @@ export async function recomputeHole(
     clubFor: (id) => clubs.find((c) => c.id === id) ?? null,
     handedness: profile?.handedness ?? 'R',
     elevationAt: grid ? (p) => sampleElevation(grid, p) : null,
+    model: playerConditionModel(profile),
   });
   await upsertHoleShots(db, shots);
 

@@ -1,6 +1,12 @@
-import { destinationPoint, haversineDistanceM, type LatLng } from '@caddymate/engine';
+import {
+  DEFAULT_CONDITION_MODEL,
+  destinationPoint,
+  haversineDistanceM,
+  type LatLng,
+} from '@caddymate/engine';
 import { describe, expect, it } from 'vitest';
 import { applyTally, holeStrokes, orderShots, recomputeHoleShots, tallyHole } from './hole.js';
+import { playerConditionModel } from './profiles.js';
 import { newShot } from './shots.js';
 import type { Shot } from './types.js';
 
@@ -206,5 +212,33 @@ describe('recomputeHoleShots — neutral results', () => {
     });
     expect(out.map((s) => s.neutralDistanceM)).toEqual([null, null]);
     expect(out.map((s) => s.conditionModelVersion)).toEqual([null, null]);
+  });
+
+  describe('with the player condition model (decision 007)', () => {
+    // Playing north into a 6 m/s northerly.
+    const into = { ...calm, wind_speed_ms: 6, wind_dir_deg: 0 };
+    const s = shot({ start: TEE, end: at(150), lie: 'fairway', conditions: into });
+    const neutralWith = (model?: ReturnType<typeof playerConditionModel>) =>
+      recomputeHoleShots([s], { pin: PIN, clubFor: () => iron, ...(model ? { model } : {}) })[0]!;
+
+    it('uses the learned coefficients: a stronger headwind effect gives a longer neutral', () => {
+      const base = neutralWith();
+      const learned = neutralWith(
+        playerConditionModel({ conditionOverrides: { wind: { headPerMps: 0.042 } } }),
+      );
+      expect(learned.neutralDistanceM!).toBeGreaterThan(base.neutralDistanceM! + 5);
+      // Air multiplier 1 − 0.042·6 on the observed distance.
+      expect(learned.neutralDistanceM!).toBeCloseTo(learned.observedDistanceM! / (1 - 0.252), 1);
+      expect(learned.conditionModelVersion).toBe(DEFAULT_CONDITION_MODEL.version);
+    });
+
+    it('matches the default model when the profile has no (or empty, or stale) overrides', () => {
+      const base = neutralWith();
+      for (const profile of [null, undefined, {}, { conditionOverrides: {} }]) {
+        expect(neutralWith(playerConditionModel(profile)).neutralDistanceM).toBe(
+          base.neutralDistanceM,
+        );
+      }
+    });
   });
 });

@@ -1,8 +1,16 @@
 /** Play view (docs/SPEC.md §5.2–§5.6). */
-import type { Club, CourseBundle, Round, Shot, StoredConditionPattern } from '@caddymate/api';
+import {
+  playerConditionModel,
+  type Club,
+  type CourseBundle,
+  type Round,
+  type Shot,
+  type StoredConditionPattern,
+} from '@caddymate/api';
 import {
   initialBearingDeg,
   type ClubPattern,
+  type ConditionModelV1,
   type Handedness,
   type LatLng,
 } from '@caddymate/engine';
@@ -86,6 +94,8 @@ export default function PlayScreen() {
     () => new Map<string, ClubPattern>((patterns.data ?? []).map((p) => [p.clubId, p.params])),
     [patterns.data],
   );
+  // The learned condition model (decision 007), resolved once per profile.
+  const conditionModel = useMemo(() => playerConditionModel(profile.data), [profile.data]);
   const [hole, setHole] = useState<number | null>(null);
 
   useEffect(() => {
@@ -130,6 +140,7 @@ export default function PlayScreen() {
       patterns={patternMap}
       conditionPatterns={conditionPatterns.data ?? []}
       handedness={profile.data?.handedness ?? 'R'}
+      conditionModel={conditionModel}
       handicapIndex={round.data.handicapIndexUsed ?? profile.data?.handicapIndexOfficial ?? null}
     />
   );
@@ -146,6 +157,7 @@ function Play(props: {
   patterns: ReadonlyMap<string, ClubPattern>;
   conditionPatterns: readonly StoredConditionPattern[];
   handedness: Handedness;
+  conditionModel: ConditionModelV1;
   handicapIndex: number | null;
 }) {
   const { round, bundle, clubs, hole, setHole } = props;
@@ -159,6 +171,7 @@ function Play(props: {
     patterns: props.patterns,
     conditionPatterns: props.conditionPatterns,
     handedness: props.handedness,
+    conditionModel: props.conditionModel,
     handicapIndex: props.handicapIndex,
   });
   const scores = useHoleScores(round.id);

@@ -1,6 +1,8 @@
 import {
+  DEFAULT_CONDITION_MODEL,
   FLAT_STANCE,
   STANDARD_CONDITIONS,
+  resolveConditionModel,
   fitPattern,
   haversineDistanceM,
   priorFor,
@@ -14,6 +16,7 @@ import {
   RecommendationCache,
   baselineFor,
   buildRecommendInput,
+  conditionModelKey,
   describeChoice,
   describeOption,
   evaluateCardChoice,
@@ -85,6 +88,42 @@ describe('recommendation input assembly', () => {
       recommendationKey(position({ conditions: { ...STANDARD_CONDITIONS, windSpeedMps: 6 } })),
     ).not.toBe(k);
     expect(recommendationKey(position({ slope: { ...FLAT_STANCE, uphill: 'mild' } }))).not.toBe(k);
+  });
+
+  it('passes the player condition model to the search and keys on it (decision 007)', () => {
+    const learned = resolveConditionModel({ wind: { headPerMps: 0.03 } });
+    expect(buildRecommendInput(position())!.model).toBeUndefined();
+    expect(buildRecommendInput(position({ model: learned }))!.model).toBe(learned);
+
+    const k = recommendationKey(position());
+    // The default model, however it was resolved, keys like no model.
+    expect(recommendationKey(position({ model: DEFAULT_CONDITION_MODEL }))).toBe(k);
+    expect(recommendationKey(position({ model: resolveConditionModel({}) }))).toBe(k);
+    const kl = recommendationKey(position({ model: learned }));
+    expect(kl).not.toBe(k);
+    // Equal models share a key; a different learned model does not.
+    expect(conditionModelKey(resolveConditionModel({ wind: { headPerMps: 0.03 } }))).toBe(
+      conditionModelKey(learned),
+    );
+    expect(conditionModelKey(learned)).toMatch(/^m[0-9a-z]+$/);
+    expect(
+      recommendationKey(position({ model: resolveConditionModel({ wind: { headPerMps: 0.04 } }) })),
+    ).not.toBe(kl);
+  });
+
+  it('evaluates options with the player condition model', () => {
+    const wind = { ...STANDARD_CONDITIONS, windSpeedMps: 6, windFromDeg: 0 };
+    const base = buildRecommendInput(position({ conditions: wind }))!;
+    const strong = buildRecommendInput(
+      position({
+        conditions: wind,
+        model: resolveConditionModel({ wind: { headPerMps: 0.06, tailPerMps: 0.06 } }),
+      }),
+    )!;
+    const aim = PIN;
+    const a = evaluateCardChoice(base, null, '7i', aim)!;
+    const b = evaluateCardChoice(strong, null, '7i', aim)!;
+    expect(b.expectedStrokes).not.toBe(a.expectedStrokes);
   });
 });
 

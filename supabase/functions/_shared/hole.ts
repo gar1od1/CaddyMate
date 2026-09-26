@@ -7,6 +7,7 @@ import {
   haversineDistanceM,
   initialBearingDeg,
   toClubFrame,
+  type ConditionModelV1,
   type Handedness,
   type LatLng,
 } from './engine/index.ts';
@@ -27,6 +28,11 @@ export interface RecomputeContext {
   handedness?: Handedness;
   /** Course elevation grid sampler; its heights replace GPS altitudes when both ends are on it. */
   elevationAt?: ((p: LatLng) => number | null) | null;
+  /**
+   * The player's condition model (`resolveConditionModel(profile.condition_overrides)`,
+   * decision 007); default the engine's.
+   */
+  model?: ConditionModelV1;
 }
 
 const samePoint = (a: LatLng | null, b: LatLng | null) =>
@@ -65,7 +71,8 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
  *  4. observed distance/lateral in the club frame, distance to pin before and
  *     after (putts use the entered feet when present), result surface;
  *  5. with `ctx.clubFor`: start/end elevations from the grid (when on it)
- *     and the neutral result stamped with the condition-model version.
+ *     and the neutral result (with `ctx.model`, the player's condition
+ *     model) stamped with the condition-model version.
  */
 export function recomputeHoleShots(shots: readonly Shot[], ctx: RecomputeContext): Shot[] {
   const out = orderShots(shots).map((s, i) => ({ ...s, seq: i + 1 }));
@@ -108,6 +115,7 @@ export function recomputeHoleShots(shots: readonly Shot[], ctx: RecomputeContext
         club: s.clubId ? ctx.clubFor(s.clubId) : null,
         handedness: ctx.handedness ?? 'R',
         elevationAt: ctx.elevationAt ?? null,
+        ...(ctx.model ? { model: ctx.model } : {}),
       });
       s.neutralDistanceM = neutral?.alongM ?? null;
       s.neutralLateralM = neutral?.lateralM ?? null;

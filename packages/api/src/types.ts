@@ -9,6 +9,7 @@
 import type { Database, Json } from '@caddymate/db';
 import type {
   ClubPattern,
+  ConditionModelOverrides,
   LatLng,
   Polygon,
   RecommendationSnapshot,
@@ -38,6 +39,13 @@ export interface Profile {
   handicapIndexOfficial: number | null;
   defaultShape: ShapeKind;
   homeCourseId: string | null;
+  /**
+   * `profiles.condition_overrides` (learned condition coefficients, decision 007) as stored:
+   * untrusted JSON, `{}` when none. Resolve with `playerConditionModel`; written by the
+   * server (`refit`) only. Optional because profiles cached on a device before this field
+   * existed lack it.
+   */
+  conditionOverrides?: ConditionModelOverrides;
 }
 
 export interface Club {

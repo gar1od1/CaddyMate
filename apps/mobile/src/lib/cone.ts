@@ -21,6 +21,7 @@ import {
   windComponents,
   type ClubPattern,
   type ConditionContext,
+  type ConditionModelV1,
   type Conditions,
   type FrameResult,
   type Handedness,
@@ -111,6 +112,8 @@ export interface OverlayInput {
   lie: Lie;
   slope: StanceSlope;
   handedness: Handedness;
+  /** The player's condition model (decision 007); default the engine's. */
+  model?: ConditionModelV1;
   green: Polygon | null;
   /** Distance from the ball to the front edge of the green along the pin line. */
   greenFrontM: number | null;
@@ -160,6 +163,7 @@ export function buildDispersionOverlay(input: OverlayInput): DispersionOverlay |
     slope: input.slope,
     handedness: input.handedness,
   };
+  if (input.model) ctx.model = input.model;
   const useEmpirical = !!input.empirical && input.empirical.nEffective >= EMPIRICAL_MIN_N;
   const drawn =
     useEmpirical && input.empirical ? input.empirical.params : conditionPattern(input.pattern, ctx);

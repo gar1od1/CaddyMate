@@ -33,6 +33,7 @@ import {
   stanceSlopeSuggestion,
   toRecommendationSnapshot,
   type ClubPattern,
+  type ConditionModelV1,
   type Handedness,
   type LatLng,
   type RecommendationSnapshot,
@@ -126,6 +127,11 @@ export function usePlay(args: {
   /** Stored empirical condition-bucket patterns (§8.5). */
   conditionPatterns?: readonly StoredConditionPattern[];
   handedness?: Handedness;
+  /**
+   * The player's condition model (`playerConditionModel(profile)`, decision 007),
+   * resolved once by the caller and kept referentially stable; default the engine's.
+   */
+  conditionModel?: ConditionModelV1;
   /** Round's handicap index, else the profile's official one. */
   handicapIndex?: number | null;
 }) {
@@ -133,6 +139,7 @@ export function usePlay(args: {
   const patterns = args.patterns ?? NO_PATTERNS;
   const conditionPatterns = args.conditionPatterns;
   const handedness: Handedness = args.handedness ?? 'R';
+  const model = args.conditionModel;
   const handicapIndex = args.handicapIndex ?? null;
   const hole: Hole | undefined = bundle.holes.find((h) => h.number === holeNumber);
   const shots = useMemo(
@@ -221,6 +228,7 @@ export function usePlay(args: {
           conditions: currentConditions(weather, windOverride, elevBall, elevPin),
           slope: card.slope,
           handedness,
+          ...(model ? { model } : {}),
           bag,
           handicapIndex,
           isTeeShot: onTee,
@@ -292,6 +300,7 @@ export function usePlay(args: {
           lie,
           slope: card.slope,
           handedness,
+          ...(model ? { model } : {}),
           green: hole?.green ?? null,
           greenFrontM: green?.frontM ?? null,
         })
@@ -300,7 +309,7 @@ export function usePlay(args: {
   // --- plays like (§17 Q4) and the terrain slope suggestion (§7.5) ---------
   const pinOverridden = !!round.pinOverrides[String(holeNumber)];
   const headlineM = pinOverridden ? distToPin : (green?.centreM ?? distToPin);
-  const plArgs = { club, lie, slope: card.slope, handedness };
+  const plArgs = { club, lie, slope: card.slope, handedness, ...(model ? { model } : {}) };
   const playsLikeM =
     here && pin
       ? playsLike(headlineM, {

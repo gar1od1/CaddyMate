@@ -1,4 +1,4 @@
-import { FLAT_STANCE } from '@caddymate/engine';
+import { DEFAULT_CONDITION_MODEL, FLAT_STANCE, resolveConditionModel } from '@caddymate/engine';
 import { describe, expect, it } from 'vitest';
 import { currentConditions, playsLike } from './conditions';
 
@@ -43,5 +43,22 @@ describe('current conditions and plays like', () => {
     ).toBeCloseTo(159, 0);
     expect(playsLike(null, { ...base, conditions: calm })).toBeNull();
     expect(playsLike(150, { ...base, club: { kind: 'putter' }, conditions: calm })).toBeNull();
+  });
+
+  it('uses the player condition model when given (decision 007)', () => {
+    const base = {
+      bearingDeg: 0,
+      club: { kind: 'iron' as const, loftDeg: 30 },
+      lie: 'fairway' as const,
+      slope: FLAT_STANCE,
+      handedness: 'R' as const,
+      conditions: currentConditions(weather, null, null, null),
+    };
+    const dflt = playsLike(150, base)!;
+    expect(playsLike(150, { ...base, model: DEFAULT_CONDITION_MODEL })).toBe(dflt);
+    const learned = resolveConditionModel({ wind: { headPerMps: 0.042 } });
+    // 5 m/s into: air multiplier 1 − 0.042·5.
+    expect(playsLike(150, { ...base, model: learned })).toBeCloseTo(150 / (1 - 0.21), 6);
+    expect(playsLike(150, { ...base, model: learned })!).toBeGreaterThan(dflt);
   });
 });

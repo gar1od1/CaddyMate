@@ -8,6 +8,7 @@
  */
 import { effectivePattern, type Club, type Hole } from '@caddymate/api';
 import {
+  DEFAULT_CONDITION_MODEL,
   baselineForHandicap,
   evaluateChoice,
   explainOption,
@@ -15,6 +16,7 @@ import {
   prepareHole,
   type BaselineId,
   type ClubPattern,
+  type ConditionModelV1,
   type Conditions,
   type Handedness,
   type HoleFeature as StrategyFeature,
@@ -87,6 +89,8 @@ export interface PositionInput {
   conditions: Conditions;
   slope: StanceSlope;
   handedness: Handedness;
+  /** The player's condition model (decision 007); default the engine's. */
+  model?: ConditionModelV1;
   /** The bag from {@link strategyClubs}. */
   bag: readonly StrategyClub[];
   handicapIndex: number | null;
@@ -109,15 +113,40 @@ export function buildRecommendInput(p: PositionInput): RecommendInput | null {
     baseline: baselineFor(p.handicapIndex),
     clubs: [...p.bag],
     isTeeShot: p.isTeeShot,
+    ...(p.model ? { model: p.model } : {}),
   };
 }
 
 const r = (x: number, dp: number) => x.toFixed(dp);
 
+const modelKeys = new WeakMap<ConditionModelV1, string>();
+
+/**
+ * Short fingerprint of a condition model for cache keys: '' for the engine
+ * default (or none), else an FNV-1a hash of its JSON. Memoised per object.
+ */
+export function conditionModelKey(model: ConditionModelV1 | undefined): string {
+  if (!model || model === DEFAULT_CONDITION_MODEL) return '';
+  const hit = modelKeys.get(model);
+  if (hit !== undefined) return hit;
+  const json = JSON.stringify(model);
+  let key = '';
+  if (json !== JSON.stringify(DEFAULT_CONDITION_MODEL)) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < json.length; i++) {
+      h ^= json.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+    key = `m${(h >>> 0).toString(36)}`;
+  }
+  modelKeys.set(model, key);
+  return key;
+}
+
 /**
  * Cache key for a position: rounded start/pin (~1 m), lie, slope, wind
- * (0.5 m/s, 10°), air, elevations, handedness, baseline and the bag's
- * patterns. Equal keys ⇒ the search would return the same answer.
+ * (0.5 m/s, 10°), air, elevations, handedness, condition model, baseline
+ * and the bag's patterns. Equal keys ⇒ the search would return the same answer.
  */
 export function recommendationKey(p: PositionInput): string {
   const c = p.conditions;
@@ -134,6 +163,7 @@ export function recommendationKey(p: PositionInput): string {
     `${r(c.tempC, 0)}/${r(c.pressureHpa, 0)}`,
     `${r(c.elevationStartM, 1)}>${r(c.elevationEndM, 1)}`,
     p.handedness,
+    conditionModelKey(p.model),
     baselineFor(p.handicapIndex),
     p.isTeeShot ? 'tee' : '',
     bag,
