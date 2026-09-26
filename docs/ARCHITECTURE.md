@@ -273,16 +273,18 @@ Full reference: [`supabase/functions/README.md`](../supabase/functions/README.md
 
 ### Configuration & boot validation
 
-| Surface        | Module                               | Behaviour on missing config                                                                    |
-| -------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| Mobile         | `apps/mobile/src/lib/env.ts`         | Never throws at import; exports `envProblem`, which the root layout renders instead of the app |
-| Web            | `apps/web/src/lib/env.ts`            | Throws on first use, naming the variable and `.env.example`                                    |
-| Web proxy      | `apps/web/src/proxy.ts`              | Falls back to `''` so the edge proxy never crashes                                             |
-| Edge Functions | `supabase/functions/_shared/auth.ts` | `Deno.env` reads; `SUPABASE_*` injected by the platform, `MAPBOX_TOKEN` optional               |
+| Surface        | Module                                 | Behaviour on missing config                                                                      |
+| -------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Mobile         | `apps/mobile/src/lib/env.ts`           | Never throws at import; exports `envProblem`, which the root layout renders instead of the app   |
+| Web            | `apps/web/src/lib/env.ts`              | Required values throw on first use (getters), naming the variable and `.env.example`             |
+| Web proxy      | `apps/web/src/proxy.ts`                | Falls back to `''` so the edge proxy never crashes                                               |
+| Edge Functions | `supabase/functions/_shared/auth.ts`   | `Deno.env` reads; `SUPABASE_*` injected by the platform, `MAPBOX_TOKEN` optional                 |
+| Edge (Sentry)  | `supabase/functions/_shared/sentry.ts` | `SENTRY_DSN` / `SENTRY_ENVIRONMENT`, optional; read here to avoid an import cycle (decision 008) |
 
-Variables: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_MAPBOX_TOKEN`
-(optional); `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Templates in each app's
-`.env.example`.
+Variables: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_MAPBOX_TOKEN`,
+`EXPO_PUBLIC_SENTRY_DSN`, `EXPO_PUBLIC_SENTRY_ENVIRONMENT` (last three optional);
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SENTRY_DSN`,
+`NEXT_PUBLIC_SENTRY_ENVIRONMENT` (Sentry optional). Templates in each app's `.env.example`.
 
 ### Design system
 
@@ -298,24 +300,56 @@ SI internally, yards/feet only at the UI edge; club frame `+along` down the line
 
 ### Observability
 
-SPEC §16 calls for Sentry on mobile and web; it is **not yet installed**. Today: Edge Function logs
-and version columns on derived rows.
+SPEC §16; choices in [decision 008](decisions/008-deploy-and-observability.md). Every surface is
+**off until its DSN is set** and never throws for want of one.
+
+| Surface        | How                                                                                                                                                                                                                                      | Switch                         |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| Mobile         | `@sentry/react-native` + `@sentry/react-native/expo` plugin. `src/lib/sentry.ts`: `initSentry()` at the root layout's module scope, `withSentry(RootLayout)`, `setSentryUser` in `<Gate>`                                                | `EXPO_PUBLIC_SENTRY_DSN`       |
+| Web            | `@sentry/nextjs`. `src/lib/sentry.ts` `initSentry(runtime)` from `src/instrumentation.ts` (node + edge, `onRequestError`) and `src/instrumentation-client.ts` (browser; user id from the Supabase auth listener); `app/global-error.tsx` | `NEXT_PUBLIC_SENTRY_DSN`       |
+| Edge Functions | `_shared/sentry.ts` posts a Sentry envelope (no SDK) for errors `serveJson` maps to ≥ 500; 2 s cap; tag `function`                                                                                                                       | `SENTRY_DSN` (function secret) |
+| All            | Errors only (no tracing); user = id, never email; no cookies, headers, bodies or IP; tags `engine_version`, `strategy_engine_version`, `condition_model_version`, app/runtime                                                            | —                              |
+
+Source maps upload at build time when `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` are set
+(Vercel env; EAS secrets for `production` — `development`/`preview` set
+`SENTRY_DISABLE_AUTO_UPLOAD`). Plus: Supabase's Edge Function logs and the version columns on
+derived rows (SPEC §7.6).
 
 ---
 
 ## 13. Deployment & environments
 
-| Concern        | Current state                                                                                                     |
-| -------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Database       | `caddymate-prod` (eu-west-1; ref in `supabase/config.toml`). Local: Supabase CLI or `local-db.sh`.                |
-| Migrations     | Applied by hand, in order. SPEC §3.3's "CI applies migrations on `main`" is **not yet automated**.                |
-| Edge Functions | Deployed by hand with `supabase functions deploy` after `pnpm vendor:engine`; secrets via `supabase secrets set`. |
-| Web            | Vercel per SPEC §3.1 (preview per PR); no Vercel config is committed in this repo.                                |
-| Mobile         | EAS Build profiles `development` / `preview` (internal APK) / `production`; builds cut from tags (SPEC §3.3).     |
-| Watch          | Sideloaded; needs the Connect IQ SDK to build.                                                                    |
+Decision 008. Everything automated is **inert until its secrets exist**, so CI and forks pass
+without them.
 
-Not yet done (README "Status"): physical-device run, prod deploy of migrations and functions,
-Connect IQ compile.
+| Concern        | Automation                                                                                                                                                                                                                               | Needs                                                                                                                                             |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Database       | `caddymate-prod` (eu-west-1; ref in `supabase/config.toml`). Local: Supabase CLI or `local-db.sh`.                                                                                                                                       | —                                                                                                                                                 |
+| Migrations     | `.github/workflows/deploy.yml`, after CI passes on a push to `main` (or run by hand): copies `packages/db/migrations` to `supabase/migrations`, `supabase link`, `db push --dry-run`, `db push --yes`.                                   | GitHub secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD` + repo variable `SUPABASE_DEPLOY_ENABLED=true` (see below) |
+| Edge Functions | Same workflow, after migrations: `supabase functions deploy weather elevation refit finalise-round import-sim`. Function secrets (`MAPBOX_TOKEN`, `SENTRY_DSN`, `SENTRY_ENVIRONMENT`) stay manual: `supabase secrets set`.               | As above                                                                                                                                          |
+| Web            | Vercel Git integration (production on `main`, preview per PR). `apps/web/vercel.json`: Next.js, install at the workspace root, `pnpm run build`, `ignoreCommand` skips builds that touch none of `apps/web`, `packages`, root manifests. | Vercel project with **Root Directory `apps/web`**; env below                                                                                      |
+| Mobile         | `.github/workflows/mobile-build.yml` on tags `mobile-v*` (or by hand): `eas build --platform android --profile preview --non-interactive --no-wait`.                                                                                     | GitHub secret `EXPO_TOKEN`; `expo.extra.eas.projectId` in `app.json` (empty until `eas init` fills it — never invent one); EAS env below          |
+| Watch          | Sideloaded; needs the Connect IQ SDK to build.                                                                                                                                                                                           | —                                                                                                                                                 |
+
+**Vercel env** (Production + Preview): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`;
+optional `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_ENVIRONMENT` (default: Vercel's
+`NEXT_PUBLIC_VERCEL_ENV`), and build-only `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` for
+source maps.
+
+**EAS env** (`eas env:create`, per environment): `EXPO_PUBLIC_SUPABASE_URL`,
+`EXPO_PUBLIC_SUPABASE_ANON_KEY`, optional `EXPO_PUBLIC_MAPBOX_TOKEN`, `EXPO_PUBLIC_SENTRY_DSN`; for
+`production` builds also `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` (or set
+`SENTRY_DISABLE_AUTO_UPLOAD=true`), otherwise the Sentry Gradle step fails the build.
+
+**Before enabling the Supabase deploy.** Prod's migration history still holds the v1 app's 73
+migrations (`20260514…`–`20260804…`) and none of this repo's, so `db push` will stop on the
+mismatch, and v2's `schema_v2` would collide with v1 tables. The cutover (fresh schema, or
+`supabase migration repair --status reverted|applied <version>` per entry, then a `db push
+--dry-run` from a laptop) is a deliberate manual step; only then set `SUPABASE_DEPLOY_ENABLED=true`.
+The `production` GitHub environment can add a required reviewer to both deploy jobs.
+
+Still manual: that cutover, function secrets, Vercel project creation, `eas init`, iOS builds,
+store submission. Not yet done (README "Status"): physical-device run, Connect IQ compile.
 
 ---
 
@@ -324,8 +358,9 @@ Connect IQ compile.
 - **Scripts** (root `package.json`): `dev`, `build`, `typecheck`, `lint`, `test` (Turborepo),
   `format` / `format:check` (Prettier), `vendor:engine`.
 - **CI** (`.github/workflows/ci.yml`): job `check` runs `format:check → typecheck → lint → test`;
-  job `db` runs `local-db.sh` against PostGIS 17. The web build, Expo export and Deno tests are
-  run locally before a PR (CLAUDE.md §7).
+  job `db` runs `local-db.sh` against PostGIS 17; job `deno` runs the Edge Function tests and type
+  check. The web build and Expo export are run locally before a PR (CLAUDE.md §7).
+  `deploy.yml` and `mobile-build.yml` are in §13.
 - **Branching:** short-lived branches → PR → `main` (SPEC §3.3); Conventional Commits with scopes.
 - **Rules and definition of done:** [`CLAUDE.md`](../CLAUDE.md),
   [`standards/working-rules.md`](standards/working-rules.md),

@@ -10,6 +10,10 @@ export const env = {
   supabaseUrl,
   supabaseAnonKey,
   mapboxToken: process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '',
+  /** Optional: Sentry crash/error reporting (decision 008). Empty = Sentry stays off. */
+  sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN ?? '',
+  /** Optional Sentry environment; defaults to `development` in dev builds, else `production`. */
+  sentryEnvironment: process.env.EXPO_PUBLIC_SENTRY_ENVIRONMENT ?? '',
 };
 
 export const envProblem: string | null =

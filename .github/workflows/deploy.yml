@@ -1,0 +1,98 @@
+# Production deploy of the Supabase side (docs/SPEC.md §3.3, decision 008):
+# migrations from packages/db/migrations, then the Edge Functions. Web deploys
+# through Vercel's Git integration (apps/web/vercel.json); mobile through
+# mobile-build.yml.
+#
+# Runs after CI succeeds on main (so nothing unverified reaches prod), or by hand.
+# It is a no-op until ALL of these exist (docs/ARCHITECTURE.md §13):
+#   secrets  SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD
+#   variable SUPABASE_DEPLOY_ENABLED = true   (explicit opt-in: prod still holds
+#            the v1 migration history, which must be reconciled first — §13)
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+      sha: ${{ steps.check.outputs.sha }}
+    steps:
+      - id: check
+        env:
+          TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          OPT_IN: ${{ vars.SUPABASE_DEPLOY_ENABLED }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          if [ -n "$TOKEN" ] && [ -n "$REF" ] && [ -n "$PASSWORD" ] && [ "$OPT_IN" = "true" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Supabase deploy skipped: set the SUPABASE_* secrets and the SUPABASE_DEPLOY_ENABLED=true variable (docs/ARCHITECTURE.md §13)."
+          fi
+
+  migrations:
+    needs: gate
+    if: needs.gate.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      # The CLI reads supabase/migrations; the repo keeps them in packages/db (CLAUDE.md §8).
+      - name: Stage migrations for the CLI
+        run: mkdir -p supabase/migrations && cp packages/db/migrations/*.sql supabase/migrations/
+      - run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+      - name: Pending migrations (dry run)
+        run: supabase db push --dry-run
+      - name: Apply migrations
+        run: supabase db push --yes
+
+  functions:
+    needs: [gate, migrations]
+    if: needs.gate.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      # The vendored engine is committed and CI's vendor_test proves it is fresh.
+      - name: Deploy Edge Functions
+        run: |
+          supabase functions deploy weather elevation refit finalise-round import-sim \
+            --project-ref "$SUPABASE_PROJECT_REF"

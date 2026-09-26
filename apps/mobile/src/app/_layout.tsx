@@ -15,7 +15,12 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { startSync } from '@/data/sync';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { envProblem } from '@/lib/env';
+import { GrantsProvider } from '@/lib/grants';
+import { initSentry, setSentryUser, withSentry } from '@/lib/sentry';
 import { supabase } from '@/lib/supabase';
+
+// Crash/error reporting, only when EXPO_PUBLIC_SENTRY_DSN is set (decision 008).
+initSentry();
 
 const PLAYER = grantsForRole('player');
 
@@ -97,6 +102,8 @@ function Gate() {
 
   // Push the local shot queue whenever someone is signed in.
   useEffect(() => (session ? startSync() : undefined), [session]);
+  // Errors carry the user's id (never the email) while signed in.
+  useEffect(() => setSentryUser(session?.user.id ?? null), [session]);
 
   // Gate 3: the route's page must be held. Segments are route names
   // (`round/[id]/scorecard`); the page lookup is by prefix, so that is enough.
@@ -124,31 +131,33 @@ function Gate() {
 
   return (
     <>
-      <Stack
-        screenOptions={{
-          headerStyle: { backgroundColor: colors.bgElevated },
-          headerTintColor: colors.text,
-          headerTitleStyle: { fontWeight: '700' },
-          contentStyle: { backgroundColor: colors.bg },
-        }}
-      >
-        <Stack.Screen name="index" options={{ title: 'CaddyMate' }} />
-        <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-        <Stack.Screen name="bag" options={{ title: 'My bag' }} />
-        <Stack.Screen name="round/new" options={{ title: 'Start round' }} />
-        <Stack.Screen name="round/[id]/index" options={{ headerShown: false }} />
-        <Stack.Screen name="round/[id]/scorecard" options={{ title: 'Scorecard' }} />
-        <Stack.Screen name="round/[id]/summary" options={{ title: 'Round summary' }} />
-        <Stack.Screen name="review/[roundId]" options={{ title: 'Round review' }} />
-        <Stack.Screen name="review/trends" options={{ title: 'Trends' }} />
-        <Stack.Screen name="review/clubs/[clubId]" options={{ title: 'Dispersion' }} />
-      </Stack>
+      <GrantsProvider value={grants}>
+        <Stack
+          screenOptions={{
+            headerStyle: { backgroundColor: colors.bgElevated },
+            headerTintColor: colors.text,
+            headerTitleStyle: { fontWeight: '700' },
+            contentStyle: { backgroundColor: colors.bg },
+          }}
+        >
+          <Stack.Screen name="index" options={{ title: 'CaddyMate' }} />
+          <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+          <Stack.Screen name="bag" options={{ title: 'My bag' }} />
+          <Stack.Screen name="round/new" options={{ title: 'Start round' }} />
+          <Stack.Screen name="round/[id]/index" options={{ headerShown: false }} />
+          <Stack.Screen name="round/[id]/scorecard" options={{ title: 'Scorecard' }} />
+          <Stack.Screen name="round/[id]/summary" options={{ title: 'Round summary' }} />
+          <Stack.Screen name="review/[roundId]" options={{ title: 'Round review' }} />
+          <Stack.Screen name="review/trends" options={{ title: 'Trends' }} />
+          <Stack.Screen name="review/clubs/[clubId]" options={{ title: 'Dispersion' }} />
+        </Stack>
+      </GrantsProvider>
       {denied ? <DeniedBanner label={denied} onClose={closeDenied} /> : null}
     </>
   );
 }
 
-export default function RootLayout() {
+function RootLayout() {
   if (envProblem) {
     return (
       <Centered>
@@ -167,3 +176,6 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+// With a DSN, Sentry.wrap adds touch breadcrumbs and a root error boundary; else unchanged.
+export default withSentry(RootLayout);

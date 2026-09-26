@@ -1,5 +1,6 @@
 /** JSON responses, error mapping and outbound fetch helpers shared by the Edge Functions. */
 import { corsHeaders, preflight } from './cors.ts';
+import { reportError } from './sentry.ts';
 
 /** An error with an HTTP status and a stable machine-readable code. */
 export class HttpError extends Error {
@@ -29,9 +30,20 @@ export function errorJson(err: unknown): Response {
   return json({ error: { code: 'internal', message: 'Internal error' } }, 500);
 }
 
-/** Wrap a handler with CORS preflight handling and error → JSON mapping. */
+/** Server-side failures worth an alert: anything not an `HttpError`, and `HttpError`s ≥ 500. */
+export function isReportable(err: unknown): boolean {
+  return !(err instanceof HttpError) || err.status >= 500;
+}
+
+/**
+ * Wrap a handler with CORS preflight handling and error → JSON mapping.
+ * Reportable errors go to Sentry first when `SENTRY_DSN` is set (decision 008;
+ * `report` is injectable for tests). Awaited, bounded by its own timeout, so the
+ * report is not cut off when the isolate winds down after the response.
+ */
 export function serveJson(
   handler: (req: Request) => Promise<Response>,
+  report: (err: unknown, req: Request) => Promise<boolean> = reportError,
 ): (req: Request) => Promise<Response> {
   return async (req) => {
     const pre = preflight(req);
@@ -39,6 +51,7 @@ export function serveJson(
     try {
       return await handler(req);
     } catch (err) {
+      if (isReportable(err)) await report(err, req).catch(() => false);
       return errorJson(err);
     }
   };

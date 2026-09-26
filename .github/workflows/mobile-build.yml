@@ -1,0 +1,53 @@
+# EAS Build on tag (docs/SPEC.md §3.1, §3.3; decision 008): pushing `mobile-v*`
+# queues an internal Android APK (`preview` profile) on Expo's servers.
+# A no-op until the EXPO_TOKEN secret exists and `eas init` has filled
+# `expo.extra.eas.projectId` in apps/mobile/app.json (docs/ARCHITECTURE.md §13).
+# EXPO_PUBLIC_* values come from EAS environment variables, not from here.
+name: Mobile build
+
+on:
+  push:
+    tags: ['mobile-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          project_id=$(node -p "require('./apps/mobile/app.json').expo.extra?.eas?.projectId || ''")
+          if [ -n "$EXPO_TOKEN" ] && [ -n "$project_id" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::EAS build skipped: needs the EXPO_TOKEN secret and extra.eas.projectId in apps/mobile/app.json (run 'eas init')."
+          fi
+
+  build:
+    needs: gate
+    if: needs.gate.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Queue EAS build
+        working-directory: apps/mobile
+        run: eas build --platform android --profile preview --non-interactive --no-wait

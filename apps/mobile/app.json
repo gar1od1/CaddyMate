@@ -45,7 +45,8 @@
           "locationWhenInUsePermission": "CaddyMate uses your location to mark where each shot starts and finishes."
         }
       ],
-      ["@maplibre/maplibre-react-native", { "android": { "locationEngine": "google" } }]
+      ["@maplibre/maplibre-react-native", { "android": { "locationEngine": "google" } }],
+      ["@sentry/react-native/expo", { "url": "https://sentry.io/" }]
     ],
     "experiments": { "typedRoutes": true },
     "extra": {

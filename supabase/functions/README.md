@@ -119,15 +119,20 @@ against a recording client) — change the api first, then the mirror.
 
 ## Environment
 
-| Variable                    | Required | Notes                                                          |
-| --------------------------- | -------- | -------------------------------------------------------------- |
-| `SUPABASE_URL`              | auto     | Injected by Supabase.                                          |
-| `SUPABASE_ANON_KEY`         | auto     | Injected; used with the caller's JWT.                          |
-| `SUPABASE_SERVICE_ROLE_KEY` | auto     | Injected; cache/Storage writes only.                           |
-| `MAPBOX_TOKEN`              | optional | Enables Terrain-RGB elevation. Without it, Open-Meteo is used. |
+| Variable                    | Required | Notes                                                                            |
+| --------------------------- | -------- | -------------------------------------------------------------------------------- |
+| `SUPABASE_URL`              | auto     | Injected by Supabase.                                                            |
+| `SUPABASE_ANON_KEY`         | auto     | Injected; used with the caller's JWT.                                            |
+| `SUPABASE_SERVICE_ROLE_KEY` | auto     | Injected; cache/Storage writes only.                                             |
+| `MAPBOX_TOKEN`              | optional | Enables Terrain-RGB elevation. Without it, Open-Meteo is used.                   |
+| `SENTRY_DSN`                | optional | Errors mapped to ≥ 500 are posted to Sentry (`_shared/sentry.ts`, decision 008). |
+| `SENTRY_ENVIRONMENT`        | optional | Sentry environment tag; default `production`.                                    |
+
+Deploys run from `.github/workflows/deploy.yml` once enabled (docs/ARCHITECTURE.md §13); by hand:
 
 ```sh
 supabase secrets set MAPBOX_TOKEN=pk.…        # optional
+supabase secrets set SENTRY_DSN=https://…     # optional error reporting
 supabase functions deploy weather elevation   # --project-ref mceverccxohligbwpdwd for prod
 pnpm vendor:engine                            # after any engine change (test enforces it)
 supabase functions deploy refit finalise-round import-sim
@@ -142,7 +147,7 @@ skipped on plain Postgres without a `storage` schema).
 
 ## Layout and tests
 
-- `_shared/` — auth, CORS, JSON errors, fetch-with-timeout, elevation providers,
+- `_shared/` — auth, CORS, JSON errors (reported to Sentry by `sentry.ts`), fetch-with-timeout, elevation providers,
   and `terrain.ts` / `weather.ts`: copies of `packages/engine/src/terrain`
   (functions are bundled from this directory only, so they do not import the
   engine). Change the engine first, then the copy; `_shared/parity_test.ts`
