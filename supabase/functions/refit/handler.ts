@@ -4,14 +4,15 @@
  * caller's clubs. See ../_shared/refit.ts.
  */
 import { HttpError, json } from '../_shared/http.ts';
+import { type Grants, requirePermission } from '../_shared/permissions.ts';
 import { refitClubs, type JobStore } from '../_shared/refit.ts';
 import { isUuid, readJson } from '../_shared/store.ts';
 
 export const MAX_CLUBS = 100;
 
 export interface RefitDeps {
-  /** Verify the caller; throws HttpError(401) otherwise. */
-  authenticate(req: Request): Promise<{ userId: string; store: JobStore }>;
+  /** Verify the caller and load their grants; throws HttpError(401) otherwise. */
+  authenticate(req: Request): Promise<{ userId: string; store: JobStore; grants: Grants }>;
   now(): Date;
 }
 
@@ -25,7 +26,8 @@ export function parseClubIds(raw: unknown): string[] | undefined {
 
 export async function handleRefit(req: Request, deps: RefitDeps): Promise<Response> {
   if (req.method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST');
-  const { userId, store } = await deps.authenticate(req);
+  const { userId, store, grants } = await deps.authenticate(req);
+  requirePermission(grants, 'clubs.refit');
   const body = await readJson(req);
   const clubIds = parseClubIds(body.clubIds);
   if (body.recomputeNeutral !== undefined && typeof body.recomputeNeutral !== 'boolean') {

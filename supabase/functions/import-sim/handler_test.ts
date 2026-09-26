@@ -1,8 +1,11 @@
 import { assertEquals } from '@std/assert';
 import { fakeState, fakeStore, shotRow, USER, uuid } from '../_shared/fake_store.ts';
 import { HttpError } from '../_shared/http.ts';
+import { grantsForRole } from '../_shared/permissions.ts';
 import type { ClubRow } from '../_shared/types.ts';
 import { clubResolver, dedupe, fileHash, handleImportSim } from './handler.ts';
+
+const PLAYER = grantsForRole('player');
 
 const NOW = new Date('2026-09-25T12:00:00Z');
 const DR = uuid(1);
@@ -33,7 +36,7 @@ function setup() {
     ],
   });
   const deps = {
-    authenticate: () => Promise.resolve({ userId: USER, store: fakeStore(st) }),
+    authenticate: () => Promise.resolve({ userId: USER, store: fakeStore(st), grants: PLAYER }),
     now: () => NOW,
   };
   return { st, deps };
@@ -184,9 +187,20 @@ Deno.test('a failed shot insert rolls the session back', async () => {
   const err = console.error;
   const res = await handleImportSim(post({ source: 'gspro', csv: 'Club,Carry\n7i,150' }), {
     ...deps,
-    authenticate: () => Promise.resolve({ userId: USER, store }),
+    authenticate: () => Promise.resolve({ userId: USER, store, grants: PLAYER }),
   }).catch((e: Error) => e.message);
   console.error = err;
   assertEquals(res, 'boom');
+  assertEquals(st.sessions.length, 0);
+});
+
+Deno.test('403 without import.write, before anything is written', async () => {
+  const { st, deps } = setup();
+  const grants = grantsForRole('player', { player: ['import.view'], curator: [], admin: [] });
+  const err = await handleImportSim(post({ source: 'gspro', csv: 'Club,Carry\n7i,150' }), {
+    ...deps,
+    authenticate: () => Promise.resolve({ userId: USER, store: fakeStore(st), grants }),
+  }).catch((e: HttpError) => e);
+  assertEquals(err instanceof HttpError && [err.status, err.code], [403, 'forbidden']);
   assertEquals(st.sessions.length, 0);
 });

@@ -17,6 +17,7 @@ import {
   tallyHole,
 } from '../_shared/hole.ts';
 import { HttpError, json } from '../_shared/http.ts';
+import { type Grants, requirePermission } from '../_shared/permissions.ts';
 import { clubProfile, refitClubs, type ClubRefitResult } from '../_shared/refit.ts';
 import {
   derivedShotPatch,
@@ -32,7 +33,7 @@ import type { HoleScore, LieKind, Shot } from '../_shared/types.ts';
 export const SEQ_PARK = 1000;
 
 export interface FinaliseDeps {
-  authenticate(req: Request): Promise<{ userId: string; store: FinaliseStore }>;
+  authenticate(req: Request): Promise<{ userId: string; store: FinaliseStore; grants: Grants }>;
   now(): Date;
   /**
    * TODO(review): strokes gained, SG categories and decision/execution grades
@@ -177,7 +178,8 @@ export async function finaliseRound(
 
 export async function handleFinaliseRound(req: Request, deps: FinaliseDeps): Promise<Response> {
   if (req.method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST');
-  const { userId, store } = await deps.authenticate(req);
+  const { userId, store, grants } = await deps.authenticate(req);
+  requirePermission(grants, 'rounds.write');
   const body = await readJson(req);
   if (!isUuid(body.roundId)) throw new HttpError(400, 'bad_request', 'roundId must be a uuid');
   return json(await finaliseRound(store, userId, body.roundId, deps));

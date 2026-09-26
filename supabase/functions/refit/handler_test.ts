@@ -2,9 +2,12 @@ import { assertEquals, assertRejects } from '@std/assert';
 import { CONDITION_MODEL_VERSION } from '../_shared/engine/index.ts';
 import { ewkbPoint, fakeState, fakeStore, shotRow, USER, uuid } from '../_shared/fake_store.ts';
 import { HttpError } from '../_shared/http.ts';
+import { DEFAULT_ROLE_PERMISSIONS, grantsForRole } from '../_shared/permissions.ts';
 import { driverDistanceFor } from '../_shared/refit.ts';
 import type { ClubRow } from '../_shared/types.ts';
 import { handleRefit } from './handler.ts';
+
+const PLAYER = grantsForRole('player');
 
 const NOW = new Date('2026-09-25T12:00:00Z');
 const I7 = uuid(7);
@@ -45,7 +48,10 @@ function deps(st = fakeState()) {
   const store = fakeStore(st);
   return {
     st,
-    deps: { authenticate: () => Promise.resolve({ userId: USER, store }), now: () => NOW },
+    deps: {
+      authenticate: () => Promise.resolve({ userId: USER, store, grants: PLAYER }),
+      now: () => NOW,
+    },
   };
 }
 
@@ -200,3 +206,18 @@ Deno.test('rejects bad requests', async () => {
     HttpError,
   );
 });
+
+Deno.test(
+  '403 without clubs.refit (clubs page switched off), before anything is written',
+  async () => {
+    const { st } = deps(fakeState({ clubs: [club(I7, 'iron')], shots: simShots(I7, 5, 150) }));
+    const player = DEFAULT_ROLE_PERMISSIONS.player.filter((k) => k !== 'clubs.view');
+    const grants = grantsForRole('player', { ...DEFAULT_ROLE_PERMISSIONS, player });
+    const err = await handleRefit(post({}), {
+      authenticate: () => Promise.resolve({ userId: USER, store: fakeStore(st), grants }),
+      now: () => NOW,
+    }).catch((e: HttpError) => e);
+    assertEquals(err instanceof HttpError && [err.status, err.code], [403, 'forbidden']);
+    assertEquals(st.patterns.size, 0);
+  },
+);

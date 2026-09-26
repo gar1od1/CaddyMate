@@ -8,6 +8,7 @@
  * affected clubs.
  */
 import { HttpError, json } from '../_shared/http.ts';
+import { type Grants, requirePermission } from '../_shared/permissions.ts';
 import { refitClubs, type ClubRefitResult } from '../_shared/refit.ts';
 import { parseSimCsv, SimCsvError, type SimFormat, type SimShot } from '../_shared/simcsv.ts';
 import { isUuid, readJson, type SimShotInsert, type SimStore } from '../_shared/store.ts';
@@ -19,7 +20,7 @@ export const MAX_ROWS = 20_000;
 export const DEDUPE_WINDOW_MS = 1000;
 
 export interface ImportSimDeps {
-  authenticate(req: Request): Promise<{ userId: string; store: SimStore }>;
+  authenticate(req: Request): Promise<{ userId: string; store: SimStore; grants: Grants }>;
   now(): Date;
 }
 
@@ -140,7 +141,8 @@ export function dedupe(
 
 export async function handleImportSim(req: Request, deps: ImportSimDeps): Promise<Response> {
   if (req.method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST');
-  const { userId, store } = await deps.authenticate(req);
+  const { userId, store, grants } = await deps.authenticate(req);
+  requirePermission(grants, 'import.write');
   const { source, csv, clubAliases, utcOffsetMinutes } = parseBody(await readJson(req));
 
   let parsed;

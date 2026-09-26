@@ -14,3 +14,4 @@ export * from './neutral.js';
 export * from './elevation.js';
 export * from './patterns.js';
 export * from './review.js';
+export * from './permissions.js';

@@ -1,0 +1,121 @@
+{
+  "permissions": [
+    {
+      "permission_key": "dashboard.view",
+      "module_key": "dashboard",
+      "page_key": "dashboard",
+      "verb": "view",
+      "description": "Open the dashboard"
+    },
+    {
+      "permission_key": "rounds.view",
+      "module_key": "rounds",
+      "page_key": "rounds",
+      "verb": "view",
+      "description": "Open the rounds section and the play screens (start, play, scorecard, summary)"
+    },
+    {
+      "permission_key": "rounds.write",
+      "module_key": "rounds",
+      "page_key": "rounds",
+      "verb": "write",
+      "description": "Finalise a round on the server (finalise-round)"
+    },
+    {
+      "permission_key": "rounds.review.view",
+      "module_key": "rounds",
+      "page_key": "rounds.review",
+      "verb": "view",
+      "description": "Open round review (replay, decisions, strokes gained)"
+    },
+    {
+      "permission_key": "rounds.trends.view",
+      "module_key": "rounds",
+      "page_key": "rounds.trends",
+      "verb": "view",
+      "description": "Open trends (rolling SG, course view, WHS ledger)"
+    },
+    {
+      "permission_key": "clubs.view",
+      "module_key": "clubs",
+      "page_key": "clubs",
+      "verb": "view",
+      "description": "Open the bag and club dispersion pages"
+    },
+    {
+      "permission_key": "clubs.refit",
+      "module_key": "clubs",
+      "page_key": "clubs",
+      "verb": "refit",
+      "description": "Run the authoritative pattern refit (refit)"
+    },
+    {
+      "permission_key": "courses.view",
+      "module_key": "courses",
+      "page_key": "courses",
+      "verb": "view",
+      "description": "Open the course list, course pages and the editor for own courses"
+    },
+    {
+      "permission_key": "courses.publish",
+      "module_key": "courses",
+      "page_key": "courses",
+      "verb": "publish",
+      "description": "Read, edit and publish any user's course (curation)"
+    },
+    {
+      "permission_key": "import.view",
+      "module_key": "import",
+      "page_key": "import",
+      "verb": "view",
+      "description": "Open simulator import"
+    },
+    {
+      "permission_key": "import.write",
+      "module_key": "import",
+      "page_key": "import",
+      "verb": "write",
+      "description": "Import a simulator session (import-sim)"
+    }
+  ],
+  "role_permissions": {
+    "player": [
+      "clubs.refit",
+      "clubs.view",
+      "courses.view",
+      "dashboard.view",
+      "import.view",
+      "import.write",
+      "rounds.review.view",
+      "rounds.trends.view",
+      "rounds.view",
+      "rounds.write"
+    ],
+    "curator": [
+      "clubs.refit",
+      "clubs.view",
+      "courses.publish",
+      "courses.view",
+      "dashboard.view",
+      "import.view",
+      "import.write",
+      "rounds.review.view",
+      "rounds.trends.view",
+      "rounds.view",
+      "rounds.write"
+    ],
+    "admin": [
+      "clubs.refit",
+      "clubs.view",
+      "courses.publish",
+      "courses.view",
+      "dashboard.view",
+      "import.view",
+      "import.write",
+      "rounds.review.view",
+      "rounds.trends.view",
+      "rounds.view",
+      "rounds.write"
+    ]
+  }
+}

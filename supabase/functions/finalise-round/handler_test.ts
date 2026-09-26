@@ -2,9 +2,12 @@ import { assertEquals } from '@std/assert';
 import type { LatLng } from '../_shared/engine/index.ts';
 import { ewkbPoint, fakeState, fakeStore, shotRow, USER, uuid } from '../_shared/fake_store.ts';
 import { HttpError } from '../_shared/http.ts';
+import { grantsForRole } from '../_shared/permissions.ts';
 import type { RoundRow } from '../_shared/store.ts';
 import type { ClubRow, ShotRow } from '../_shared/types.ts';
 import { handleFinaliseRound, storedSurfaces } from './handler.ts';
+
+const PLAYER = grantsForRole('player');
 
 const NOW = new Date('2026-09-25T16:00:00Z');
 const ROUND = uuid(500);
@@ -123,7 +126,7 @@ Deno.test(
     const st = state();
     const reviewed: string[] = [];
     const res = await handleFinaliseRound(post({ roundId: ROUND }), {
-      authenticate: () => Promise.resolve({ userId: USER, store: fakeStore(st) }),
+      authenticate: () => Promise.resolve({ userId: USER, store: fakeStore(st), grants: PLAYER }),
       now: () => NOW,
       reviewRoundHook: (id, shots) => {
         reviewed.push(`${id}:${shots.length}`);
@@ -172,7 +175,7 @@ Deno.test(
     // Idempotent: a second run changes no shots.
     const again = await (
       await handleFinaliseRound(post({ roundId: ROUND }), {
-        authenticate: () => Promise.resolve({ userId: USER, store: fakeStore(st) }),
+        authenticate: () => Promise.resolve({ userId: USER, store: fakeStore(st), grants: PLAYER }),
         now: () => NOW,
       })
     ).json();
@@ -194,7 +197,7 @@ Deno.test('storedSurfaces prefers where a shot ended, then the next lie', () => 
 Deno.test('404 for unknown or foreign rounds; 400 for a bad id', async () => {
   const st = state();
   const d = {
-    authenticate: () => Promise.resolve({ userId: USER, store: fakeStore(st) }),
+    authenticate: () => Promise.resolve({ userId: USER, store: fakeStore(st), grants: PLAYER }),
     now: () => NOW,
   };
   const status = (req: Request) =>
@@ -207,4 +210,15 @@ Deno.test('404 for unknown or foreign rounds; 400 for a bad id', async () => {
   assertEquals(await status(post({ roundId: ROUND })), 404);
   assertEquals(await status(post({ roundId: 'x' })), 400);
   assertEquals(await status(new Request('https://fn.local/', { method: 'GET' })), 405);
+});
+
+Deno.test('403 without rounds.write', async () => {
+  const st = state();
+  const grants = grantsForRole('player', { player: ['rounds.view'], curator: [], admin: [] });
+  const err = await handleFinaliseRound(post({ roundId: ROUND }), {
+    authenticate: () => Promise.resolve({ userId: USER, store: fakeStore(st), grants }),
+    now: () => NOW,
+  }).catch((e: HttpError) => e);
+  assertEquals(err instanceof HttpError && [err.status, err.code], [403, 'forbidden']);
+  assertEquals(st.rounds[0]!.status, 'live');
 });
