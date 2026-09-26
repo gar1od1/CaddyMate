@@ -6,8 +6,8 @@
 # Runs after CI succeeds on main (so nothing unverified reaches prod), or by hand.
 # It is a no-op until ALL of these exist (docs/ARCHITECTURE.md §13):
 #   secrets  SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD
-#   variable SUPABASE_DEPLOY_ENABLED = true   (explicit opt-in: prod still holds
-#            the v1 migration history, which must be reconciled first — §13)
+#   variable SUPABASE_DEPLOY_ENABLED = true   (explicit opt-in; prod was cut over to v2
+#            on 2026-09-26 — ARCHITECTURE §13)
 name: Deploy
 
 on:

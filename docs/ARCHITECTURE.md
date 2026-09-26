@@ -341,12 +341,7 @@ source maps.
 `production` builds also `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` (or set
 `SENTRY_DISABLE_AUTO_UPLOAD=true`), otherwise the Sentry Gradle step fails the build.
 
-**Before enabling the Supabase deploy.** Prod's migration history still holds the v1 app's 73
-migrations (`20260514…`–`20260804…`) and none of this repo's, so `db push` will stop on the
-mismatch, and v2's `schema_v2` would collide with v1 tables. The cutover (fresh schema, or
-`supabase migration repair --status reverted|applied <version>` per entry, then a `db push
---dry-run` from a laptop) is a deliberate manual step; only then set `SUPABASE_DEPLOY_ENABLED=true`.
-The `production` GitHub environment can add a required reviewer to both deploy jobs.
+**Prod history.** On 2026-09-26 prod (`mceverccxohligbwpdwd`) was cut over from the v1 app: the v1 `public` schema (33 tables, 73 migration rows) was dropped after archiving its course rows to `packages/db/seed/archive/moyvalley-v1-2026-09-26.json`, and every migration in `packages/db/migrations` was applied and recorded under its file version, so `supabase db push` now sees prod as in step with the repo. Enabling `deploy.yml` needs only the three secrets and `SUPABASE_DEPLOY_ENABLED=true`.
 
 Still manual: that cutover, function secrets, Vercel project creation, `eas init`, iOS builds,
 store submission. Not yet done (README "Status"): physical-device run, Connect IQ compile.

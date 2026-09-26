@@ -1,0 +1,465 @@
+{
+  "_note": "Archive of the v1 caddymate-prod course rows before the v2 schema replaced them (2026-09-26). The geometry is a synthetic OSM-ingest stub laid out on a grid, not surveyed Moyvalley data; kept for the record only.",
+  "course": {
+    "name": "Moyvalley Golf Club",
+    "slug": "moyvalley-golf-club-moyvalley",
+    "country": "IE",
+    "region": "Kildare",
+    "city": "Moyvalley",
+    "source": "osm",
+    "osm_relation_id": "way/263841644",
+    "centroid": {
+      "type": "Point",
+      "coordinates": [-6.9221749, 53.411903]
+    },
+    "par_total": 72,
+    "hole_count": 18,
+    "published_at": "2026-05-20T20:38:23Z",
+    "change_reason": "OSM ingest (initial draft) \u2014 relation way/263841644"
+  },
+  "tee_set": {
+    "name": "Championship",
+    "colour_hex": "#FFFFFF",
+    "course_rating": null,
+    "slope_rating": null
+  },
+  "holes": [
+    {
+      "hole_number": 1,
+      "par": 4,
+      "stroke_index": 1,
+      "green_polygon": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-6.92815, 53.40588],
+            [-6.92785, 53.40588],
+            [-6.92785, 53.40612],
+            [-6.92815, 53.40612],
+            [-6.92815, 53.40588]
+          ]
+        ]
+      },
+      "tee_marker": {
+        "type": "Point",
+        "coordinates": [-6.928, 53.4051]
+      },
+      "fairway_polygon": null,
+      "rough_polygon": null,
+      "line_of_play": null
+    },
+    {
+      "hole_number": 2,
+      "par": 5,
+      "stroke_index": 2,
+      "green_polygon": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-6.92595, 53.40588],
+            [-6.92565, 53.40588],
+            [-6.92565, 53.40612],
+            [-6.92595, 53.40612],
+            [-6.92595, 53.40588]
+          ]
+        ]
+      },
+      "tee_marker": {
+        "type": "Point",
+        "coordinates": [-6.9258, 53.4051]
+      },
+      "fairway_polygon": null,
+      "rough_polygon": null,
+      "line_of_play": null
+    },
+    {
+      "hole_number": 3,
+      "par": 3,
+      "stroke_index": 3,
+      "green_polygon": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-6.92375, 53.40588],
+            [-6.92345, 53.40588],
+            [-6.92345, 53.40612],
+            [-6.92375, 53.40612],
+            [-6.92375, 53.40588]
+          ]
+        ]
+      },
+      "tee_marker": {
+        "type": "Point",
+        "coordinates": [-6.9236, 53.4051]
+      },
+      "fairway_polygon": null,
+      "rough_polygon": null,
+      "line_of_play": null
+    },
+    {
+      "hole_number": 4,
+      "par": 4,
+      "stroke_index": 4,
+      "green_polygon": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-6.92155, 53.40588],
+            [-6.92125, 53.40588],
+            [-6.92125, 53.40612],
+            [-6.92155, 53.40612],
+            [-6.92155, 53.40588]
+          ]
+        ]
+      },
+      "tee_marker": {
+        "type": "Point",
+        "coordinates": [-6.9214, 53.4051]
+      },
+      "fairway_polygon": null,
+      "rough_polygon": null,
+      "line_of_play": null
+    },
+    {
+      "hole_number": 5,
+      "par": 4,
+      "stroke_index": 5,
+      "green_polygon": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-6.91935, 53.40588],
+            [-6.91905, 53.40588],
+            [-6.91905, 53.40612],
+            [-6.91935, 53.40612],
+            [-6.91935, 53.40588]
+          ]
+        ]
+      },
+      "tee_marker": {
+        "type": "Point",
+        "coordinates": [-6.9192, 53.4051]
+      },
+      "fairway_polygon": null,
+      "rough_polygon": null,
+      "line_of_play": null
+    },
+    {
+      "hole_number": 6,
+      "par": 5,
+      "stroke_index": 6,
+      "green_polygon": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-6.91715, 53.40588],
+            [-6.91685, 53.40588],
+            [-6.91685, 53.40612],
+            [-6.91715, 53.40612],
+            [-6.91715, 53.40588]
+          ]
+        ]
+      },
+      "tee_marker": {
+        "type": "Point",
+        "coordinates": [-6.917, 53.4051]
+      },
+      "fairway_polygon": null,
+      "rough_polygon": null,
+      "line_of_play": null
+    },
+    {
+      "hole_number": 7,
+      "par": 3,
+      "stroke_index": 7,
+      "green_polygon": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-6.92815, 53.41178],
+            [-6.92785, 53.41178],
+            [-6.92785, 53.41202],
+            [-6.92815, 53.41202],
+            [-6.92815, 53.41178]
+          ]
+        ]
+      },
+      "tee_marker": {
+        "type": "Point",
+        "coordinates": [-6.928, 53.411]
+      },
+      "fairway_polygon": null,
+      "rough_polygon": null,
+      "line_of_play": null
+    },
+    {
+      "hole_number": 8,
+      "par": 4,
+      "stroke_index": 8,
+      "green_polygon": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-6.92595, 53.41178],
+            [-6.92565, 53.41178],
+            [-6.92565, 53.41202],
+            [-6.92595, 53.41202],
+            [-6.92595, 53.41178]
+          ]
+        ]
+      },
+      "tee_marker": {
+        "type": "Point",
+        "coordinates": [-6.9258, 53.411]
+      },
+      "fairway_polygon": null,
+      "rough_polygon": null,
+      "line_of_play": null
+    },
+    {
+      "hole_number": 9,
+      "par": 4,
+      "stroke_index": 9,
+      "green_polygon": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-6.92375, 53.41178],
+            [-6.92345, 53.41178],
+            [-6.92345, 53.41202],
+            [-6.92375, 53.41202],
+            [-6.92375, 53.41178]
+          ]
+        ]
+      },
+      "tee_marker": {
+        "type": "Point",
+        "coordinates": [-6.9236, 53.411]
+      },
+      "fairway_polygon": null,
+      "rough_polygon": null,
+      "line_of_play": null
+    },
+    {
+      "hole_number": 10,
+      "par": 5,
+      "stroke_index": 10,
+      "green_polygon": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-6.92155, 53.41178],
+            [-6.92125, 53.41178],
+            [-6.92125, 53.41202],
+            [-6.92155, 53.41202],
+            [-6.92155, 53.41178]
+          ]
+        ]
+      },
+      "tee_marker": {
+        "type": "Point",
+        "coordinates": [-6.9214, 53.411]
+      },
+      "fairway_polygon": null,
+      "rough_polygon": null,
+      "line_of_play": null
+    },
+    {
+      "hole_number": 11,
+      "par": 4,
+      "stroke_index": 11,
+      "green_polygon": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-6.91935, 53.41178],
+            [-6.91905, 53.41178],
+            [-6.91905, 53.41202],
+            [-6.91935, 53.41202],
+            [-6.91935, 53.41178]
+          ]
+        ]
+      },
+      "tee_marker": {
+        "type": "Point",
+        "coordinates": [-6.9192, 53.411]
+      },
+      "fairway_polygon": null,
+      "rough_polygon": null,
+      "line_of_play": null
+    },
+    {
+      "hole_number": 12,
+      "par": 3,
+      "stroke_index": 12,
+      "green_polygon": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-6.91715, 53.41178],
+            [-6.91685, 53.41178],
+            [-6.91685, 53.41202],
+            [-6.91715, 53.41202],
+            [-6.91715, 53.41178]
+          ]
+        ]
+      },
+      "tee_marker": {
+        "type": "Point",
+        "coordinates": [-6.917, 53.411]
+      },
+      "fairway_polygon": null,
+      "rough_polygon": null,
+      "line_of_play": null
+    },
+    {
+      "hole_number": 13,
+      "par": 4,
+      "stroke_index": 13,
+      "green_polygon": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-6.92815, 53.41768],
+            [-6.92785, 53.41768],
+            [-6.92785, 53.41792],
+            [-6.92815, 53.41792],
+            [-6.92815, 53.41768]
+          ]
+        ]
+      },
+      "tee_marker": {
+        "type": "Point",
+        "coordinates": [-6.928, 53.4169]
+      },
+      "fairway_polygon": null,
+      "rough_polygon": null,
+      "line_of_play": null
+    },
+    {
+      "hole_number": 14,
+      "par": 4,
+      "stroke_index": 14,
+      "green_polygon": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-6.92595, 53.41768],
+            [-6.92565, 53.41768],
+            [-6.92565, 53.41792],
+            [-6.92595, 53.41792],
+            [-6.92595, 53.41768]
+          ]
+        ]
+      },
+      "tee_marker": {
+        "type": "Point",
+        "coordinates": [-6.9258, 53.4169]
+      },
+      "fairway_polygon": null,
+      "rough_polygon": null,
+      "line_of_play": null
+    },
+    {
+      "hole_number": 15,
+      "par": 4,
+      "stroke_index": 15,
+      "green_polygon": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-6.92375, 53.41768],
+            [-6.92345, 53.41768],
+            [-6.92345, 53.41792],
+            [-6.92375, 53.41792],
+            [-6.92375, 53.41768]
+          ]
+        ]
+      },
+      "tee_marker": {
+        "type": "Point",
+        "coordinates": [-6.9236, 53.4169]
+      },
+      "fairway_polygon": null,
+      "rough_polygon": null,
+      "line_of_play": null
+    },
+    {
+      "hole_number": 16,
+      "par": 3,
+      "stroke_index": 16,
+      "green_polygon": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-6.92155, 53.41768],
+            [-6.92125, 53.41768],
+            [-6.92125, 53.41792],
+            [-6.92155, 53.41792],
+            [-6.92155, 53.41768]
+          ]
+        ]
+      },
+      "tee_marker": {
+        "type": "Point",
+        "coordinates": [-6.9214, 53.4169]
+      },
+      "fairway_polygon": null,
+      "rough_polygon": null,
+      "line_of_play": null
+    },
+    {
+      "hole_number": 17,
+      "par": 4,
+      "stroke_index": 17,
+      "green_polygon": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-6.91935, 53.41768],
+            [-6.91905, 53.41768],
+            [-6.91905, 53.41792],
+            [-6.91935, 53.41792],
+            [-6.91935, 53.41768]
+          ]
+        ]
+      },
+      "tee_marker": {
+        "type": "Point",
+        "coordinates": [-6.9192, 53.4169]
+      },
+      "fairway_polygon": null,
+      "rough_polygon": null,
+      "line_of_play": null
+    },
+    {
+      "hole_number": 18,
+      "par": 5,
+      "stroke_index": 18,
+      "green_polygon": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-6.91715, 53.41768],
+            [-6.91685, 53.41768],
+            [-6.91685, 53.41792],
+            [-6.91715, 53.41792],
+            [-6.91715, 53.41768]
+          ]
+        ]
+      },
+      "tee_marker": {
+        "type": "Point",
+        "coordinates": [-6.917, 53.4169]
+      },
+      "fairway_polygon": null,
+      "rough_polygon": null,
+      "line_of_play": null
+    }
+  ],
+  "hazards": [],
+  "profiles": 0,
+  "user_clubs": 0,
+  "shots": 0,
+  "rounds": 0
+}

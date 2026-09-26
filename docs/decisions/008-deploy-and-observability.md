@@ -49,8 +49,8 @@ this repo), which `supabase db push` refuses to reconcile on its own.
 
 ## Consequences
 
-- Turning on prod deploys needs, in order: reconcile prod's migration history (§13 of
-  ARCHITECTURE), add the three secrets, then set `SUPABASE_DEPLOY_ENABLED=true`.
+- Prod's history was reconciled on 2026-09-26 (v1 dropped, v2 applied; ARCHITECTURE §13). Turning on
+  prod deploys now needs only the three secrets and `SUPABASE_DEPLOY_ENABLED=true`.
 - EAS `production` builds upload source maps and therefore need the three `SENTRY_*` EAS secrets
   (or `SENTRY_DISABLE_AUTO_UPLOAD=true`); `metro.config.js` does not yet use
   `getSentryExpoConfig`, so JS events have no debug IDs until it does.
